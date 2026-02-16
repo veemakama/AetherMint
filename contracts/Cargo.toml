@@ -1,0 +1,20 @@
+[package]
+name = "aethermint-education-contracts"
+version = "0.1.0"
+edition = "2021"
+description = "AetherMint smart contracts for decentralized credential verification on Stellar"
+authors = ["jobbykings"]
+license = "MIT"
+repository = "https://github.com/jobbykings/aethermint-education"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+soroban-sdk = "20.0.0"
+
+[dev_dependencies]
+soroban-sdk = { version = "20.0.0", features = ["testutils"] }
+
+[features]
+testutils = ["soroban-sdk/testutils"]

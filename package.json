@@ -1,0 +1,55 @@
+{
+  "name": "aethermint-education",
+  "version": "0.1.0",
+  "description": "Decentralized learning and credential verification platform powered by Stellar blockchain",
+  "main": "index.js",
+  "scripts": {
+    "install:all": "npm install && cd contracts && cargo build && cd ../backend && npm install && cd ../frontend && npm install",
+    "build": "npm run build:contracts && npm run build:backend && npm run build:frontend",
+    "build:contracts": "cd contracts && cargo build --release",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:contracts && npm run test:backend && npm run test:frontend",
+    "test:contracts": "cd contracts && cargo test",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "deploy:local": "cd contracts && npm run deploy:local",
+    "deploy:testnet": "cd contracts && npm run deploy:testnet",
+    "clean": "rm -rf node_modules && find . -name 'node_modules' -exec rm -rf {} +"
+  },
+  "keywords": [
+    "stellar",
+    "blockchain",
+    "education",
+    "credentials",
+    "soroban",
+    "web3",
+    "decentralized",
+    "learning",
+    "certificates"
+  ],
+  "author": "jobbykings",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jobbykings/aethermint-education.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jobbykings/aethermint-education/issues"
+  },
+  "homepage": "https://github.com/jobbykings/aethermint-education#readme",
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  },
+  "workspaces": [
+    "contracts",
+    "backend",
+    "frontend"
+  ]
+}
