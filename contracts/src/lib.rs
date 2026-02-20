@@ -4,6 +4,9 @@ use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Ve
 pub mod progress;
 #[cfg(test)]
 mod progress_test;
+pub mod analyticsStorage;
+#[cfg(test)]
+mod analyticsStorage_test;
 
 #[contracttype]
 pub enum DataKey {
