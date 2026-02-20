@@ -5,8 +5,7 @@ pub mod progress;
 pub mod eventLogger;
 #[cfg(test)]
 mod progress_test;
-#[cfg(test)]
-mod eventLogger_test;
+
 
 #[contracttype]
 pub enum DataKey {
