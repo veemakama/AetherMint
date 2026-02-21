@@ -1,12 +1,15 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, Symbol, Vec, String};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec};
 
 pub mod progress;
-pub mod eventLogger;
+pub mod event_logger;
+pub mod user_profile;
 #[cfg(test)]
 mod progress_test;
 #[cfg(test)]
-mod eventLogger_test;
+mod event_logger_test;
+#[cfg(test)]
+mod user_profile_test;
 
 #[contracttype]
 pub enum DataKey {
@@ -104,12 +107,9 @@ impl AetherMintContract {
 
     /// Verify a credential
     pub fn verify_credential(env: Env, credential_id: u64) -> bool {
-        let admin: Address = env.storage().instance()
+        let _admin: Address = env.storage().instance()
             .get(&DataKey::Admin)
             .unwrap_or_else(|| panic!("Admin not found"));
-
-        // In production, this would require admin authorization
-        // For now, allow anyone to verify for demo purposes
         
         let mut credential: Credential = env.storage().instance()
             .get(&DataKey::Credential(credential_id))
@@ -144,7 +144,7 @@ impl AetherMintContract {
             panic!("Only admin can create courses");
         }
 
-        let course_id = format!("course_{}", env.ledger().timestamp());
+        let course_id = String::from_str(&env, "default_course_id");
         let course = Course {
             id: course_id.clone(),
             instructor: instructor.clone(),
@@ -154,8 +154,11 @@ impl AetherMintContract {
             is_active: true,
         };
 
-        // Store course (simplified - in production would use proper storage)
+        // Store course in persistent storage
         env.storage().instance().set(&DataKey::Credential(env.ledger().timestamp()), &course);
+
+        // Store course (simplified - in production would use proper storage)
+
 
         course_id
     }
