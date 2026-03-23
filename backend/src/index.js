@@ -11,6 +11,7 @@ const quizRoutes = require('./routes/quizRoutes');
 const eventLoggerRoutes = require('./routes/eventLoggerRoutes');
 const syncRoutes = require('./routes/syncRoutes');
 const contentRoutes = require('./routes/content');
+const transactionRoutes = require('./routes/transactions');
 
 // Initialize Express app
 const app = express();
@@ -32,6 +33,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/events', eventLoggerRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/transactions', transactionRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -72,15 +74,60 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Initialize Transaction Queue System
+const transactionQueue = require('./services/transactionQueue');
+const transactionProcessor = require('./workers/transactionProcessor');
+const transactionEvents = require('./events/transactionEvents');
+
 // Start server
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 AetherMint Education Backend running on port ${PORT}`);
-  console.log(`📚 Quiz Management API available at /api/quizzes`);
-  console.log(`📊 Event Logger API available at /api/events`);
-  console.log(`🔄 Sync API available at /api/sync`);
-  console.log(`📁 Content Management API available at /api/content`);
-  console.log(`🏥 Health check available at /api/health`);
+
+async function startServer() {
+  try {
+    // Initialize transaction system components
+    await transactionQueue.initialize();
+    await transactionProcessor.initialize();
+    await transactionEvents.initialize();
+    
+    // Start transaction processing
+    await transactionQueue.startProcessing();
+    await transactionProcessor.start();
+    await transactionEvents.startListening();
+    
+    app.listen(PORT, () => {
+      console.log(`🚀 AetherMint Education Backend running on port ${PORT}`);
+      console.log(`📚 Quiz Management API available at /api/quizzes`);
+      console.log(`📊 Event Logger API available at /api/events`);
+      console.log(`🔄 Sync API available at /api/sync`);
+      console.log(`📁 Content Management API available at /api/content`);
+      console.log(`💰 Transaction Queue API available at /api/transactions`);
+      console.log(`🏥 Health check available at /api/health`);
+      console.log(`✅ Transaction Queue System initialized successfully`);
+    });
+    
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+}
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  await transactionQueue.stopProcessing();
+  await transactionProcessor.stop();
+  await transactionEvents.stopListening();
+  process.exit(0);
 });
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  await transactionQueue.stopProcessing();
+  await transactionProcessor.stop();
+  await transactionEvents.stopListening();
+  process.exit(0);
+});
+
+startServer();
 
 module.exports = app;
