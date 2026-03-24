@@ -1,5 +1,4 @@
 /**
-
  * Offline sync queue manager
  * Queues changes when offline; processes queue when online.
  * GIVEN offline changes, WHEN online, THEN sync processes queue.
@@ -40,7 +39,7 @@ const defaultOptions: Required<QueueManagerOptions> = {
 
 /**
  * In-memory queue for offline sync operations.
- * Processes items in order (FIFO) when processQueue() is called (e.g. when device comes online).
+ * Processes items in order (FIFO) when processQueue() is called.
  */
 class QueueManager {
   private queue: QueuedItem[] = [];
@@ -53,16 +52,10 @@ class QueueManager {
     this.options = { ...defaultOptions, ...options };
   }
 
-  /**
-   * Set the handler that will be invoked for each item when processing the queue.
-   */
   setProcessHandler(handler: ProcessItemHandler): void {
     this.processHandler = handler;
   }
 
-  /**
-   * Add an item to the queue. Rejects if queue is full.
-   */
   enqueue(item: Omit<QueuedItem, 'id' | 'queuedAt' | 'retryCount'>): string {
     if (this.queue.length >= this.options.maxQueueSize) {
       throw new Error(`Sync queue full (max ${this.options.maxQueueSize})`);
@@ -75,53 +68,48 @@ class QueueManager {
       queuedAt: new Date(),
       retryCount: 0
     };
+
     this.queue.push(queuedItem);
     logger.debug(`Sync queue: enqueued ${item.operation} ${item.entityType}/${item.entityId}, queue size=${this.queue.length}`);
+
     return id;
   }
 
-  /**
-   * Number of items pending in the queue.
-   */
   getPendingCount(): number {
     return this.queue.length;
   }
 
-  /**
-   * Get all pending items (read-only snapshot).
-   */
   getPendingItems(): ReadonlyArray<QueuedItem> {
     return [...this.queue];
   }
 
-  /**
-   * Remove items that have been successfully processed (called internally after processItem succeeds).
-   */
   removeProcessed(id: string): void {
     this.queue = this.queue.filter((item) => item.id !== id);
   }
 
-  /**
-   * Mark item as failed and optionally re-queue for retry.
-   */
   private markFailed(item: QueuedItem, error: string): void {
-    const index = this.queue.findIndex((q) => q.id === item.id);
-    if (index === -1) return;
+    const index = this.queue.findIndex((queuedItem) => queuedItem.id === item.id);
 
-    const next = { ...item, retryCount: item.retryCount + 1, lastError: error };
+    if (index === -1) {
+      return;
+    }
+
+    const next = {
+      ...item,
+      retryCount: item.retryCount + 1,
+      lastError: error
+    };
+
     if (next.retryCount >= this.options.maxRetries) {
       this.queue.splice(index, 1);
       logger.warn(`Sync queue: dropped item ${item.id} after ${this.options.maxRetries} retries: ${error}`);
-    } else {
-      this.queue[index] = next;
-      logger.debug(`Sync queue: will retry item ${item.id}, retry ${next.retryCount}/${this.options.maxRetries}`);
+      return;
     }
+
+    this.queue[index] = next;
+    logger.debug(`Sync queue: will retry item ${item.id}, retry ${next.retryCount}/${this.options.maxRetries}`);
   }
 
-  /**
-   * Process the queue: for each item, call the process handler. Runs sequentially.
-   * Returns number of successfully processed items.
-   */
   async processQueue(): Promise<{ processed: number; failed: number }> {
     if (this.processing) {
       logger.debug('Sync queue: process already in progress, skipping');
@@ -140,19 +128,17 @@ class QueueManager {
     try {
       while (this.queue.length > 0) {
         const item = this.queue[0];
+
         try {
           await this.processHandler(item);
           this.removeProcessed(item.id);
-          processed++;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
+          processed += 1;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
           this.markFailed(item, message);
-          failed++;
+          failed += 1;
           await this.delay(this.options.retryDelayMs);
         }
-      }
-      if (processed > 0) {
-        logger.info(`Sync queue: processed ${processed} items, ${failed} failed`);
       }
     } finally {
       this.processing = false;
@@ -161,15 +147,16 @@ class QueueManager {
     return { processed, failed };
   }
 
-  /**
-   * Process queue only for a specific user (e.g. when that user's device comes online).
-   */
   async processQueueForUser(userId: string): Promise<{ processed: number; failed: number }> {
-    if (this.processing) return { processed: 0, failed: 0 };
-    if (!this.processHandler) return { processed: 0, failed: 0 };
+    if (this.processing || !this.processHandler) {
+      return { processed: 0, failed: 0 };
+    }
 
-    const userItems = this.queue.filter((q) => q.userId === userId);
-    if (userItems.length === 0) return { processed: 0, failed: 0 };
+    const userItems = this.queue.filter((item) => item.userId === userId);
+
+    if (userItems.length === 0) {
+      return { processed: 0, failed: 0 };
+    }
 
     this.processing = true;
     let processed = 0;
@@ -180,11 +167,11 @@ class QueueManager {
         try {
           await this.processHandler(item);
           this.removeProcessed(item.id);
-          processed++;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
+          processed += 1;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
           this.markFailed(item, message);
-          failed++;
+          failed += 1;
           await this.delay(this.options.retryDelayMs);
         }
       }
@@ -195,23 +182,17 @@ class QueueManager {
     return { processed, failed };
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Clear all items (e.g. for testing or reset).
-   */
   clear(): void {
     this.queue = [];
     logger.debug('Sync queue: cleared');
   }
 
-  /**
-   * Whether the queue is currently being processed.
-   */
   isProcessing(): boolean {
     return this.processing;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
@@ -221,8 +202,8 @@ export function getQueueManager(options?: QueueManagerOptions): QueueManager {
   if (!queueManagerInstance) {
     queueManagerInstance = new QueueManager(options);
   }
+
   return queueManagerInstance;
 }
 
 export default QueueManager;
-// End of file

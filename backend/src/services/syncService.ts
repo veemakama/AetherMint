@@ -1,13 +1,12 @@
 /**
-
  * Data synchronization service
  * Device registration, real-time sync coordination, conflict resolution, and queue processing.
  * GIVEN device change, WHEN detected, THEN data syncs automatically.
  */
 
 import logger from '../utils/logger';
-import { Device, SyncStatus, type IDevice, type ISyncStatus, type SyncEntityType } from '../models/SyncStatus';
-import { resolveConflict, getDefaultStrategy, type ConflictInput, type ConflictStrategy } from './conflictResolution';
+import { Device, SyncStatus, type IDevice, type SyncEntityType } from '../models/SyncStatus';
+import { getDefaultStrategy, resolveConflict, type ConflictStrategy, type ConflictInput } from './conflictResolution';
 import { getQueueManager, type QueuedItem } from './queueManager';
 
 export interface RegisterDeviceInput {
@@ -55,9 +54,11 @@ export function setSyncWebsocketEmitter(emit: (userId: string, event: string, da
 
 function notifySyncEvent(userId: string, event: string, data: unknown): void {
   try {
-    if (websocketEmit) websocketEmit(userId, event, data);
-  } catch (e) {
-    logger.debug('Sync websocket emit failed', e);
+    if (websocketEmit) {
+      websocketEmit(userId, event, data);
+    }
+  } catch (error) {
+    logger.debug(`Sync websocket emit failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -79,8 +80,10 @@ export async function registerDevice(input: RegisterDeviceInput): Promise<IDevic
     },
     { new: true, upsert: true }
   );
+
   logger.info(`Device registered: ${input.deviceId} for user ${input.userId}`);
   await onDeviceOnline(input.userId, input.deviceId);
+
   return device as IDevice;
 }
 
@@ -89,6 +92,7 @@ export async function unregisterDevice(deviceId: string): Promise<void> {
     { deviceId },
     { $set: { status: 'offline', lastSeenAt: new Date() } }
   );
+
   logger.info(`Device unregistered: ${deviceId}`);
 }
 
@@ -105,8 +109,8 @@ export async function getDevicesForUser(userId: string): Promise<IDevice[]> {
 }
 
 export async function getDevice(deviceId: string): Promise<IDevice | null> {
-  const doc = await Device.findOne({ deviceId }).lean();
-  return doc as IDevice | null;
+  const device = await Device.findOne({ deviceId }).lean();
+  return device as IDevice | null;
 }
 
 // --- Sync status tracking ---
@@ -117,17 +121,24 @@ export async function getSyncStatus(
   entityId?: string
 ): Promise<SyncStatusInfo[]> {
   const filter: Record<string, string> = { userId };
-  if (entityType) filter.entityType = entityType;
-  if (entityId) filter.entityId = entityId;
 
-  const list = await SyncStatus.find(filter).lean();
-  return list.map((s: any) => ({
-    entityType: s.entityType,
-    entityId: s.entityId,
-    version: s.version,
-    lastModifiedAt: s.lastModifiedAt,
-    lastModifiedByDeviceId: s.lastModifiedByDeviceId,
-    payload: s.metadata?.currentPayload as Record<string, unknown> | undefined
+  if (entityType) {
+    filter.entityType = entityType;
+  }
+
+  if (entityId) {
+    filter.entityId = entityId;
+  }
+
+  const statuses = await SyncStatus.find(filter).lean();
+
+  return statuses.map((status: any) => ({
+    entityType: status.entityType,
+    entityId: status.entityId,
+    version: status.version,
+    lastModifiedAt: status.lastModifiedAt,
+    lastModifiedByDeviceId: status.lastModifiedByDeviceId,
+    payload: status.metadata?.currentPayload as Record<string, unknown> | undefined
   }));
 }
 
@@ -145,16 +156,12 @@ export async function syncEntity(
     entityId: input.entityId
   });
 
-  const serverVersion = current?.version ?? 0;
-  const serverUpdatedAt = (current?.lastModifiedAt as Date) ?? new Date(0);
-  const serverPayload = (current?.metadata?.currentPayload as Record<string, unknown>) ?? {};
-
   const conflictInput: ConflictInput = {
     entityType: input.entityType,
     entityId: input.entityId,
-    serverVersion,
-    serverUpdatedAt,
-    serverPayload,
+    serverVersion: current?.version ?? 0,
+    serverUpdatedAt: (current?.lastModifiedAt as Date) ?? new Date(0),
+    serverPayload: (current?.metadata?.currentPayload as Record<string, unknown>) ?? {},
     clientVersion: input.version,
     clientUpdatedAt: new Date(input.updatedAt),
     clientPayload: input.payload,
@@ -162,10 +169,8 @@ export async function syncEntity(
   };
 
   const resolution = resolveConflict(conflictInput, chosenStrategy);
-
   const nextVersion = current ? current.version + 1 : 1;
   const now = new Date();
-  const resolvedPayload = resolution.payload;
 
   if (!current) {
     current = await SyncStatus.create({
@@ -175,20 +180,22 @@ export async function syncEntity(
       version: nextVersion,
       lastModifiedAt: now,
       lastModifiedByDeviceId: input.deviceId,
-      metadata: { currentPayload: resolvedPayload }
+      metadata: {
+        currentPayload: resolution.payload
+      }
     });
   } else {
     current.version = nextVersion;
     current.lastModifiedAt = now;
     current.lastModifiedByDeviceId = input.deviceId;
     (current.metadata as any) = current.metadata || {};
-    (current.metadata as any).currentPayload = resolvedPayload;
+    (current.metadata as any).currentPayload = resolution.payload;
     await current.save();
   }
 
   await Device.findOneAndUpdate(
     { deviceId: input.deviceId },
-    { $set: { lastSyncAt: now } }
+    { $set: { lastSyncAt: now, status: 'online' } }
   );
 
   notifySyncEvent(input.userId, 'sync-complete', {
@@ -203,7 +210,7 @@ export async function syncEntity(
     success: true,
     version: nextVersion,
     lastModifiedAt: now,
-    payload: resolvedPayload,
+    payload: resolution.payload,
     conflictResolved: resolution.conflictDetected,
     strategy: chosenStrategy,
     message: resolution.message
@@ -220,7 +227,7 @@ async function processQueuedItem(item: QueuedItem): Promise<void> {
     entityId: item.entityId,
     version: item.version,
     updatedAt: item.queuedAt,
-    payload: (item.payload as Record<string, unknown>) ?? {}
+    payload: item.payload ?? {}
   });
 }
 
@@ -229,39 +236,56 @@ function setupQueueHandler(): void {
   queue.setProcessHandler(processQueuedItem);
 }
 
-/** Called when a device comes online: process its queued offline changes. */
+/**
+ * Called when a device comes online: process its queued offline changes.
+ */
 export async function onDeviceOnline(userId: string, deviceId: string): Promise<{ processed: number; failed: number }> {
   setupQueueHandler();
+
   const queue = getQueueManager();
   const result = await queue.processQueueForUser(userId);
+
   if (result.processed > 0) {
-    notifySyncEvent(userId, 'queue-processed', { processed: result.processed, failed: result.failed });
+    notifySyncEvent(userId, 'queue-processed', {
+      deviceId,
+      processed: result.processed,
+      failed: result.failed
+    });
   }
+
   return result;
 }
 
-/** Enqueue a sync operation (e.g. when client is offline or wants deferred sync). */
+/**
+ * Enqueue a sync operation (e.g. when client is offline or wants deferred sync).
+ */
 export function enqueueSync(item: Omit<QueuedItem, 'id' | 'queuedAt' | 'retryCount'>): string {
   setupQueueHandler();
   return getQueueManager().enqueue(item);
 }
 
-/** Process entire queue (e.g. global "we're online" event). */
+/**
+ * Process entire queue (e.g. global "we're online" event).
+ */
 export async function processSyncQueue(): Promise<{ processed: number; failed: number }> {
   setupQueueHandler();
   return getQueueManager().processQueue();
 }
+
 export async function processSyncQueueForUser(userId: string): Promise<{ processed: number; failed: number }> {
   setupQueueHandler();
   return getQueueManager().processQueueForUser(userId);
 }
 
-/** Queue status for status tracking. */
+/**
+ * Queue status for status tracking.
+ */
 export function getQueueStatus(): { pendingCount: number; isProcessing: boolean } {
   const queue = getQueueManager();
-  return { pendingCount: queue.getPendingCount(), isProcessing: queue.isProcessing() };
+  return {
+    pendingCount: queue.getPendingCount(),
+    isProcessing: queue.isProcessing()
+  };
 }
 
-// Initialize queue handler on first use
 setupQueueHandler();
-// End of file

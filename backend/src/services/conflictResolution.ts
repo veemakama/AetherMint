@@ -1,6 +1,6 @@
 /**
  * Conflict resolution for sync
- * Handles divergent changes from multiple devices using configurable strategies
+ * Handles divergent changes from multiple devices using configurable strategies.
  */
 
 import logger from '../utils/logger';
@@ -35,7 +35,7 @@ export function hasConflict(input: ConflictInput): boolean {
   if (input.serverVersion === input.clientVersion) {
     return false;
   }
-  // Conflict when client has different version than server (concurrent edits)
+
   return input.clientVersion !== input.serverVersion;
 }
 
@@ -62,6 +62,7 @@ export function resolveConflict(input: ConflictInput, strategy: ConflictStrategy
       const serverTime = new Date(input.serverUpdatedAt).getTime();
       const clientTime = new Date(input.clientUpdatedAt).getTime();
       const useClient = clientTime >= serverTime;
+
       return {
         resolved: true,
         payload: useClient ? input.clientPayload : input.serverPayload,
@@ -76,12 +77,14 @@ export function resolveConflict(input: ConflictInput, strategy: ConflictStrategy
       const serverTime = new Date(input.serverUpdatedAt).getTime();
       const clientTime = new Date(input.clientUpdatedAt).getTime();
       const useServer = serverTime <= clientTime;
+
       return {
         resolved: true,
         payload: useServer ? input.serverPayload : input.clientPayload,
         strategy: 'first-write-wins',
         conflictDetected: true,
-        winningSource: useServer ? 'server' : 'client'
+        winningSource: useServer ? 'server' : 'client',
+        message: useServer ? 'Server change landed first' : 'Client change landed first'
       };
     }
 
@@ -105,17 +108,15 @@ export function resolveConflict(input: ConflictInput, strategy: ConflictStrategy
         message: 'Client state accepted'
       };
 
-    case 'merge': {
-      const merged = mergePayloads(input.serverPayload, input.clientPayload);
+    case 'merge':
       return {
         resolved: true,
-        payload: merged,
+        payload: mergePayloads(input.serverPayload, input.clientPayload),
         strategy: 'merge',
         conflictDetected: true,
         winningSource: 'merged',
         message: 'Merged server and client changes'
       };
-    }
 
     default:
       logger.warn(`Unknown conflict strategy: ${strategy}, defaulting to last-write-wins`);
@@ -124,8 +125,7 @@ export function resolveConflict(input: ConflictInput, strategy: ConflictStrategy
 }
 
 /**
- * Shallow merge: for each key, prefer the value from the payload with the later timestamp.
- * For nested objects we do one level: if both have same key as object, merge those recursively once.
+ * Shallow merge with one-level recursive support for plain objects.
  */
 function mergePayloads(
   server: Record<string, unknown>,
@@ -134,35 +134,37 @@ function mergePayloads(
   const result: Record<string, unknown> = { ...server };
 
   for (const key of Object.keys(client)) {
-    const serverVal = server[key];
-    const clientVal = client[key];
+    const serverValue = server[key];
+    const clientValue = client[key];
 
-    if (serverVal === undefined && clientVal !== undefined) {
-      result[key] = clientVal;
-    } else if (serverVal !== undefined && clientVal === undefined) {
-      result[key] = serverVal;
-    } else if (
-      serverVal !== null &&
-      typeof serverVal === 'object' &&
-      !Array.isArray(serverVal) &&
-      clientVal !== null &&
-      typeof clientVal === 'object' &&
-      !Array.isArray(clientVal)
+    if (serverValue === undefined) {
+      result[key] = clientValue;
+      continue;
+    }
+
+    if (
+      serverValue &&
+      typeof serverValue === 'object' &&
+      !Array.isArray(serverValue) &&
+      clientValue &&
+      typeof clientValue === 'object' &&
+      !Array.isArray(clientValue)
     ) {
       result[key] = mergePayloads(
-        serverVal as Record<string, unknown>,
-        clientVal as Record<string, unknown>
+        serverValue as Record<string, unknown>,
+        clientValue as Record<string, unknown>
       );
-    } else {
-      result[key] = clientVal;
+      continue;
     }
+
+    result[key] = clientValue;
   }
 
   return result;
 }
 
 /**
- * Get default strategy per entity type (can be overridden by config).
+ * Get default strategy per entity type.
  */
 export function getDefaultStrategy(entityType: string): ConflictStrategy {
   const strategyMap: Record<string, ConflictStrategy> = {
@@ -170,7 +172,12 @@ export function getDefaultStrategy(entityType: string): ConflictStrategy {
     preferences: 'merge',
     course_state: 'last-write-wins',
     notes: 'merge',
-    generic: 'last-write-wins'
+    generic: 'last-write-wins',
+    collaboration_doc: 'merge',
+    whiteboard: 'merge',
+    classroom: 'last-write-wins',
+    workspace: 'merge'
   };
+
   return strategyMap[entityType] ?? 'last-write-wins';
 }
