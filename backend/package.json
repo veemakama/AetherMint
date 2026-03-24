@@ -42,7 +42,15 @@
     "genetic-js": "^4.0.0",
     "simple-statistics": "^7.8.3",
     "chart.js": "^4.4.0",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "@tensorflow/tfjs": "^4.15.0",
+    "@tensorflow/tfjs-node": "^4.15.0",
+    "tensorflow": "^4.15.0",
+    "crypto-js": "^4.2.0",
+    "uuid": "^9.0.1",
+    "paillier-js": "^1.2.1",
+    "elliptic": "^6.5.4",
+    "big-integer": "^1.6.52"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
@@ -81,7 +89,12 @@
     "optimization",
     "swarm-intelligence",
     "path-planning",
-    "resource-allocation"
+    "resource-allocation",
+    "federated-learning",
+    "privacy-preserving",
+    "machine-learning",
+    "secure-aggregation",
+    "differential-privacy"
   ],
   "author": "jobbykings",
   "license": "MIT"
