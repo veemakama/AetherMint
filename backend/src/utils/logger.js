@@ -38,6 +38,11 @@ const transports = [
   new winston.transports.File({
     filename: path.join('logs', 'all.log'),
   }),
+  // Security log file
+  new winston.transports.File({
+    filename: path.join('logs', 'security.log'),
+    level: 'warn', // Only log warnings, errors, and custom security events here
+  }),
 ];
 
 const logger = winston.createLogger({

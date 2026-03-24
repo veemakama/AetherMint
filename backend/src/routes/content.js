@@ -4,6 +4,7 @@ const router = express.Router();
 const ipfsService = require('../services/ipfs');
 const { ipfsAuth, optionalIpfsAuth, validateContentAccess, validateFileSize } = require('../middleware/ipfsAuth');
 const { createIpfsError } = require('../utils/ipfsUtils');
+const { ipfsLimiter } = require('../middleware/rateLimiter');
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -24,6 +25,7 @@ const upload = multer({
  * POST /api/content/upload
  */
 router.post('/upload', 
+  ipfsLimiter,
   ipfsAuth('upload'),
   upload.single('file'),
   validateFileSize,
@@ -85,6 +87,7 @@ router.post('/upload',
  * POST /api/content/upload/batch
  */
 router.post('/upload/batch',
+  ipfsLimiter,
   ipfsAuth('upload'),
   upload.array('files', 10),
   validateFileSize,
