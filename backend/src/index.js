@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const { connectRedis } = require('./utils/redis');
 const dotenv = require('dotenv');
 const { createServer } = require('http');
 const { initWebsocketService } = require('./services/websocketService');
@@ -9,7 +10,14 @@ const { setSyncWebsocketEmitter } = require('./services/syncService');
 // Load environment variables
 dotenv.config();
 
+// Connect to Redis
+connectRedis();
+
 // Import routes
+const quizRoutes = require('./routes/quizRoutes');
+const eventLoggerRoutes = require('./routes/eventLoggerRoutes');
+const syncRoutes = require('./routes/syncRoutes');
+const rbacRoutes = require('./routes/rbacRoutes');
 const resolveRoute = (routeModule) => routeModule.default || routeModule;
 const quizRoutes = resolveRoute(require('./routes/quizRoutes'));
 const eventLoggerRoutes = resolveRoute(require('./routes/eventLoggerRoutes'));
@@ -53,6 +61,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/events', eventLoggerRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/rbac', rbacRoutes);
 app.use('/api/transactions', transactionRoutes);
 
 
