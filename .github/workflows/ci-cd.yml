@@ -120,7 +120,7 @@ jobs:
 
   build-and-deploy:
     runs-on: ubuntu-latest
-    needs: [test-backend, test-federated-learning, security-scan]
+    needs: [test-backend, test-federated-learning, test-swarm-learning, security-scan]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
     steps:
@@ -206,6 +206,51 @@ jobs:
           const endTime = Date.now();
           console.log('Benchmark completed in ' + (endTime - startTime) + 'ms');
         }).catch(console.error);
+        "
+
+  test-swarm-learning:
+    runs-on: ubuntu-latest
+    needs: test-backend
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: |
+        cd backend
+        npm ci
+    
+    - name: Run swarm learning tests
+      run: |
+        cd backend
+        npm test -- --testPathPattern=swarmLearning
+    
+    - name: Test swarm learning API endpoints
+      run: |
+        cd backend
+        npm run test:api -- --testPathPattern=swarmLearning
+    
+    - name: Validate swarm learning dependencies
+      run: |
+        cd backend
+        node -e "
+        const deps = ['winston', 'crypto', 'uuid'];
+        deps.forEach(dep => {
+          try {
+            require.resolve(dep);
+            console.log('✓ ' + dep + ' is available');
+          } catch(e) {
+            console.error('✗ ' + dep + ' is missing');
+            process.exit(1);
+          }
+        });
         "
 
   notify:

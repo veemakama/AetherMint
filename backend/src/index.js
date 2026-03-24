@@ -14,6 +14,7 @@ const contentRoutes = require('./routes/content');
 const transactionRoutes = require('./routes/transactions');
 const acoRoutes = require('./routes/aco');
 const federatedLearningRoutes = require('./routes/federatedLearning');
+const swarmLearningRoutes = require('./routes/swarmLearning');
 
 // Initialize Express app
 const app = express();
@@ -38,6 +39,7 @@ app.use('/api/content', contentRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/aco', acoRoutes);
 app.use('/api/federated-learning', federatedLearningRoutes);
+app.use('/api/swarm-learning', swarmLearningRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -107,6 +109,7 @@ async function startServer() {
       console.log(`💰 Transaction Queue API available at /api/transactions`);
       console.log(`🐜 Ant Colony Optimization API available at /api/aco`);
       console.log(`🤖 Federated Learning API available at /api/federated-learning`);
+      console.log(`🐝 Swarm Learning API available at /api/swarm-learning`);
       console.log(`🏥 Health check available at /api/health`);
       console.log(`✅ Transaction Queue System initialized successfully`);
     });
