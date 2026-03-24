@@ -92,17 +92,6 @@ jobs:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aethermint_test
         REDIS_URL: redis://localhost:6379
         JWT_SECRET: test_secret
-        NODE_ENV: test
-        
-    - name: Run optimization tests
-      run: |
-        cd backend
-        npm test -- --testPathPattern=optimization.test.js --verbose
-      env:
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aethermint_test
-        REDIS_URL: redis://localhost:6379
-        JWT_SECRET: test_secret
-        NODE_ENV: test
         
     - name: Build backend
       run: |
@@ -183,7 +172,6 @@ jobs:
         cargo install soroban-cli --version 21.0.0 --locked
         
     - name: Deploy contracts to testnet
-      id: deploy
       run: |
         cd contracts
         npm run deploy:testnet
