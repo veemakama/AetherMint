@@ -37,8 +37,11 @@
     "pg": "^8.11.3",
     "redis": "^4.6.8",
     "socket.io": "^4.7.2",
-    "mongoose": "^7.5.0",
-
+    "ffmpeg-static": "^5.2.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "sharp": "^0.32.6",
+    "node-cache": "^5.1.2",
+    "geoip-lite": "^1.4.7"
   },
   "devDependencies": {
     "@babel/cli": "^7.22.15",
@@ -50,6 +53,10 @@
     "@types/jest": "^29.5.4",
     "@types/node": "^20.5.1",
     "@types/socket.io": "^3.0.2",
+    "@types/axios": "^0.14.0",
+    "@types/fluent-ffmpeg": "^2.1.21",
+    "@types/sharp": "^0.32.0",
+    "@types/geoip-lite": "^1.4.2",
     "@types/supertest": "^2.0.12",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "@typescript-eslint/parser": "^6.4.0",
