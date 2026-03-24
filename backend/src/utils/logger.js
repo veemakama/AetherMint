@@ -28,6 +28,22 @@ const format = winston.format.combine(
 
 const transports = [
   new winston.transports.Console(),
+  // Console transport
+  new winston.transports.Console(),
+  // Error log file
+  new winston.transports.File({
+    filename: path.join('logs', 'error.log'),
+    level: 'error',
+  }),
+  // Combined log file
+  new winston.transports.File({
+    filename: path.join('logs', 'all.log'),
+  }),
+  // Security log file
+  new winston.transports.File({
+    filename: path.join('logs', 'security.log'),
+    level: 'warn', // Only log warnings, errors, and custom security events here
+  }),
 ];
 
 const logger = winston.createLogger({
