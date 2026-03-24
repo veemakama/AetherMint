@@ -12,6 +12,7 @@ const eventLoggerRoutes = require('./routes/eventLoggerRoutes');
 const syncRoutes = require('./routes/syncRoutes');
 const contentRoutes = require('./routes/content');
 const transactionRoutes = require('./routes/transactions');
+const acoRoutes = require('./routes/aco');
 
 // Initialize Express app
 const app = express();
@@ -34,6 +35,7 @@ app.use('/api/events', eventLoggerRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/aco', acoRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -101,6 +103,7 @@ async function startServer() {
       console.log(`🔄 Sync API available at /api/sync`);
       console.log(`📁 Content Management API available at /api/content`);
       console.log(`💰 Transaction Queue API available at /api/transactions`);
+      console.log(`🐜 Ant Colony Optimization API available at /api/aco`);
       console.log(`🏥 Health check available at /api/health`);
       console.log(`✅ Transaction Queue System initialized successfully`);
     });

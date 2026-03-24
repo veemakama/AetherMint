@@ -37,7 +37,12 @@
     "multer": "^1.4.5-lts.1",
     "ipfs-http-client": "^60.0.1",
     "socket.io": "^4.7.2",
-    "mongoose": "^7.5.0"
+    "mongoose": "^7.5.0",
+    "ml-matrix": "^6.10.9",
+    "genetic-js": "^4.0.0",
+    "simple-statistics": "^7.8.3",
+    "chart.js": "^4.4.0",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
@@ -70,7 +75,13 @@
     "api",
     "node.js",
     "express",
-    "postgresql"
+    "postgresql",
+    "ant-colony-optimization",
+    "aco",
+    "optimization",
+    "swarm-intelligence",
+    "path-planning",
+    "resource-allocation"
   ],
   "author": "jobbykings",
   "license": "MIT"
