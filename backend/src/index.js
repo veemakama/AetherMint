@@ -75,7 +75,7 @@ app.use('*', (req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  
+
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error',
@@ -90,13 +90,13 @@ const transactionEvents = require('./events/transactionEvents');
 
 const PORT = process.env.PORT || 3001;
 
-async function startServer() {
+async function startServer () {
   try {
     // Initialize transaction system components
     await transactionQueue.initialize();
     await transactionProcessor.initialize();
     await transactionEvents.initialize();
-    
+
     // Start transaction processing
     await transactionQueue.startProcessing();
     await transactionProcessor.start();
