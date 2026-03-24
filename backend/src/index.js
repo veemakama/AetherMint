@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const { connectRedis } = require('./utils/redis');
 const dotenv = require('dotenv');
 const { createServer } = require('http');
 const { initWebsocketService } = require('./services/websocketService');
@@ -9,7 +10,14 @@ const { setSyncWebsocketEmitter } = require('./services/syncService');
 // Load environment variables
 dotenv.config();
 
+// Connect to Redis
+connectRedis();
+
 // Import routes
+const quizRoutes = require('./routes/quizRoutes');
+const eventLoggerRoutes = require('./routes/eventLoggerRoutes');
+const syncRoutes = require('./routes/syncRoutes');
+const rbacRoutes = require('./routes/rbacRoutes');
 const resolveRoute = (routeModule) => routeModule.default || routeModule;
 const quizRoutes = resolveRoute(require('./routes/quizRoutes'));
 const eventLoggerRoutes = resolveRoute(require('./routes/eventLoggerRoutes'));
@@ -53,7 +61,9 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/events', eventLoggerRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/rbac', rbacRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/cdn', cdnOptimizationRoutes);
 
 
 // Root endpoint
@@ -110,43 +120,14 @@ const transactionProcessor = require('./workers/transactionProcessor');
 const transactionEvents = require('./events/transactionEvents');
 
 const PORT = process.env.PORT || 3001;
-
-async function startServer () {
-  try {
-    // Initialize transaction system components
-    await transactionQueue.initialize();
-    await transactionProcessor.initialize();
-    await transactionEvents.initialize();
-
-    // Start transaction processing
-    await transactionQueue.startProcessing();
-    await transactionProcessor.start();
-    await transactionEvents.startListening();
-
-    server.listen(PORT, () => {
-      console.log(`🚀 AetherMint Education Backend running on port ${PORT}`);
-      console.log(`📚 Quiz Management API available at /api/quizzes`);
-      console.log(`📊 Event Logger API available at /api/events`);
-      console.log(`🔄 Sync API available at /api/sync`);
-      console.log(`📁 Content Management API available at /api/content`);
-      console.log(`💰 Transaction Queue API available at /api/transactions`);
-
-      console.log(`🏥 Health check available at /api/health`);
-      console.log(`✅ Transaction Queue System initialized successfully`);
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-}
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  await transactionQueue.stopProcessing();
-  await transactionProcessor.stop();
-  await transactionEvents.stopListening();
-  process.exit(0);
+app.listen(PORT, () => {
+  console.log(`🚀 AetherMint Education Backend running on port ${PORT}`);
+  console.log(`📚 Quiz Management API available at /api/quizzes`);
+  console.log(`📊 Event Logger API available at /api/events`);
+  console.log(`🔄 Sync API available at /api/sync`);
+  console.log(`⚡ Transaction Queue API available at /api/transactions`);
+  console.log(`🌐 CDN Optimization API available at /api/cdn`);
+  console.log(`🏥 Health check available at /api/health`);
 });
 
 process.on('SIGINT', async () => {
