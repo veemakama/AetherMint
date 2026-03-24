@@ -17,6 +17,7 @@ const syncRoutes = resolveRoute(require('./routes/syncRoutes'));
 const contentRoutes = require('./routes/content');
 const transactionRoutes = require('./routes/transactions');
 const collaborationRoutes = resolveRoute(require('./routes/collaborationRoutes'));
+const holographicRoutes = resolveRoute(require('./routes/holographicRoutes'));
 
 // Initialize Express app
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/collaboration', collaborationRoutes);
+app.use('/api/holographic', holographicRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -131,6 +133,7 @@ async function startServer () {
       console.log(`📁 Content Management API available at /api/content`);
       console.log(`💰 Transaction Queue API available at /api/transactions`);
       console.log(`🤝 Collaboration API available at /api/collaboration`);
+      console.log(`🔮 Holographic Storage API available at /api/holographic`);
       console.log(`🏥 Health check available at /api/health`);
       console.log(`✅ Transaction Queue System initialized successfully`);
     });
