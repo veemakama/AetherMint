@@ -11,6 +11,7 @@ const quizRoutes = require('./routes/quizRoutes');
 const eventLoggerRoutes = require('./routes/eventLoggerRoutes');
 const syncRoutes = require('./routes/syncRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const cdnOptimizationRoutes = require('./routes/cdnOptimizationRoutes');
 
 // Initialize Express app
 const app = express();
@@ -32,6 +33,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/events', eventLoggerRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/cdn', cdnOptimizationRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -80,7 +82,8 @@ app.listen(PORT, () => {
   console.log(`📊 Event Logger API available at /api/events`);
   console.log(`🔄 Sync API available at /api/sync`);
   console.log(`⚡ Transaction Queue API available at /api/transactions`);
-  console.log(`🏥 Health check available at /api/health`);
+  console.log(`� CDN Optimization API available at /api/cdn`);
+  console.log(`�🏥 Health check available at /api/health`);
 });
 
 module.exports = app;
