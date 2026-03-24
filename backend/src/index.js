@@ -24,6 +24,8 @@ const eventLoggerRoutes = resolveRoute(require('./routes/eventLoggerRoutes'));
 const syncRoutes = resolveRoute(require('./routes/syncRoutes'));
 const contentRoutes = require('./routes/content');
 const transactionRoutes = require('./routes/transactions');
+const acoRoutes = require('./routes/aco');
+const federatedLearningRoutes = require('./routes/federatedLearning');
 
 
 // Initialize Express app
@@ -63,6 +65,8 @@ app.use('/api/sync', syncRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/rbac', rbacRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/aco', acoRoutes);
+app.use('/api/federated-learning', federatedLearningRoutes);
 
 
 // Root endpoint
@@ -119,6 +123,7 @@ const transactionProcessor = require('./workers/transactionProcessor');
 const transactionEvents = require('./events/transactionEvents');
 
 const PORT = process.env.PORT || 3001;
+
 
 });
 
