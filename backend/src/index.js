@@ -1,15 +1,19 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const dotenv = require('dotenv');
+const { connectRedis } = require('./utils/redis');
 
 // Load environment variables
 dotenv.config();
+
+// Connect to Redis
+connectRedis();
 
 // Import routes
 const quizRoutes = require('./routes/quizRoutes');
 const eventLoggerRoutes = require('./routes/eventLoggerRoutes');
 const syncRoutes = require('./routes/syncRoutes');
+const rbacRoutes = require('./routes/rbacRoutes');
 const contentRoutes = require('./routes/content');
 
 // Initialize Express app
@@ -32,6 +36,7 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/events', eventLoggerRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/content', contentRoutes);
+app.use('/api/rbac', rbacRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
