@@ -79,12 +79,12 @@ export function AchievementDisplay({
 
   // Get unique categories and rarities
   const categories = useMemo(() => {
-    const cats = [...new Set(achievements.map(a => a.category))];
+    const cats = Array.from(new Set(achievements.map(a => a.category)));
     return ['all', ...cats];
   }, [achievements]);
 
   const rarities = useMemo(() => {
-    const rars = [...new Set(achievements.map(a => a.rarity))];
+    const rars = Array.from(new Set(achievements.map(a => a.rarity)));
     return ['all', ...rars];
   }, [achievements]);
 

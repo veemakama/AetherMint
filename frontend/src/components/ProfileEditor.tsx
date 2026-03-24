@@ -57,16 +57,22 @@ export function ProfileEditor({ onClose, onSuccess }: ProfileEditorProps) {
     setSubmitError(null);
 
     try {
+      if (!profile) {
+        setSubmitError('No profile data available');
+        return;
+      }
+
       const response = await updateProfile(data);
       
       if (response.success) {
         onSuccess?.();
         onClose?.();
       } else {
-        setSubmitError(response.message);
+        setSubmitError(response.message || 'Failed to update profile');
       }
     } catch (error) {
-      setSubmitError('An unexpected error occurred');
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setSubmitError(errorMessage);
       console.error('Profile update error:', error);
     } finally {
       setIsSubmitting(false);

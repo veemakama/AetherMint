@@ -7,6 +7,7 @@ import { AchievementDisplay } from '../../components/AchievementDisplay';
 import { CredentialList } from '../../components/CredentialList';
 import { ProfileStats } from '../../components/ProfileStats';
 import { ProfileHeader } from '../../components/Profile/ProfileHeader';
+import { ErrorBoundary } from '../../components/ErrorBoundary';
 import { 
   User, 
   Trophy, 
@@ -154,80 +155,94 @@ export default function ProfilePage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {/* Quick Stats */}
-            <ProfileStats stats={stats!} compact={true} />
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Recent Achievements */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Recent Achievements
-                </h3>
-                <AchievementDisplay 
-                  achievements={achievements} 
-                  compact={true}
-                  filterable={false}
-                  searchable={false}
-                />
-              </div>
+          <ErrorBoundary>
+            <div className="space-y-8">
+              {/* Quick Stats */}
+              {stats && <ProfileStats stats={stats} compact={true} />}
               
-              {/* Recent Credentials */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Recent Credentials
-                </h3>
-                <CredentialList 
-                  credentials={credentials.slice(0, 3)}
-                  compact={true}
-                  filterable={false}
-                  searchable={false}
-                />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Recent Achievements */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Recent Achievements
+                  </h3>
+                  <ErrorBoundary>
+                    <AchievementDisplay 
+                      achievements={achievements || []} 
+                      compact={true}
+                      filterable={false}
+                      searchable={false}
+                    />
+                  </ErrorBoundary>
+                </div>
+                
+                {/* Recent Credentials */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Recent Credentials
+                  </h3>
+                  <ErrorBoundary>
+                    <CredentialList 
+                      credentials={(credentials || []).slice(0, 3)}
+                      compact={true}
+                      filterable={false}
+                      searchable={false}
+                    />
+                  </ErrorBoundary>
+                </div>
               </div>
             </div>
-          </div>
+          </ErrorBoundary>
         )}
 
         {/* Achievements Tab */}
         {activeTab === 'achievements' && (
-          <AchievementDisplay 
-            achievements={achievements}
-            showProgress={true}
-            filterable={true}
-            searchable={true}
-          />
+          <ErrorBoundary>
+            <AchievementDisplay 
+              achievements={achievements || []}
+              showProgress={true}
+              filterable={true}
+              searchable={true}
+            />
+          </ErrorBoundary>
         )}
 
         {/* Credentials Tab */}
         {activeTab === 'credentials' && (
-          <CredentialList 
-            credentials={credentials}
-            showAddButton={true}
-            filterable={true}
-            searchable={true}
-          />
+          <ErrorBoundary>
+            <CredentialList 
+              credentials={credentials || []}
+              showAddButton={true}
+              filterable={true}
+              searchable={true}
+            />
+          </ErrorBoundary>
         )}
 
         {/* Statistics Tab */}
         {activeTab === 'stats' && (
-          <ProfileStats 
-            stats={stats!} 
-            showRanking={true} 
-            showProgress={true}
-          />
+          <ErrorBoundary>
+            {stats && <ProfileStats 
+              stats={stats} 
+              showRanking={true} 
+              showProgress={true}
+            />}
+          </ErrorBoundary>
         )}
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
-          <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-              Profile Settings
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              Settings panel would be implemented here. This could include privacy settings, 
-              notification preferences, account management, etc.
-            </p>
-          </div>
+          <ErrorBoundary>
+            <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+                Profile Settings
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Settings panel would be implemented here. This could include privacy settings, 
+                notification preferences, account management, etc.
+              </p>
+            </div>
+          </ErrorBoundary>
         )}
       </div>
 

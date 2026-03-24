@@ -273,17 +273,22 @@ export const useProfile = () => {
 
   // Refresh stats
   const refreshStats = useCallback(async () => {
-    const newStats: ProfileStats = {
-      ...MOCK_STATS,
-      completedCourses: achievements.filter(a => a.earnedDate && a.category === 'learning').length,
-      verifiedCredentials: credentials.filter(c => c.verificationStatus === 'verified').length,
-      pendingCredentials: credentials.filter(c => c.verificationStatus === 'pending').length,
-      totalAchievements: achievements.filter(a => a.earnedDate).length,
-      rareAchievements: achievements.filter(a => a.earnedDate && ['epic', 'legendary'].includes(a.rarity)).length
-    };
+    try {
+      const newStats: ProfileStats = {
+        ...MOCK_STATS,
+        completedCourses: achievements.filter(a => a.earnedDate && a.category === 'learning').length,
+        verifiedCredentials: credentials.filter(c => c.verificationStatus === 'verified').length,
+        pendingCredentials: credentials.filter(c => c.verificationStatus === 'pending').length,
+        totalAchievements: achievements.filter(a => a.earnedDate).length,
+        rareAchievements: achievements.filter(a => a.earnedDate && ['epic', 'legendary'].includes(a.rarity)).length
+      };
 
-    setStats(newStats);
-    localStorage.setItem('userStats', JSON.stringify(newStats));
+      setStats(newStats);
+      localStorage.setItem('userStats', JSON.stringify(newStats));
+    } catch (error) {
+      console.error('Error refreshing stats:', error);
+      setError('Failed to refresh statistics');
+    }
   }, [achievements, credentials]);
 
   // Initialize data on mount
