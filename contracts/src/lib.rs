@@ -1,6 +1,11 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec, U256};
 
+mod governance;
+mod test;
+
+use crate::governance::{Governance, Proposal, ProposalStatus, GovernanceDataKey};
+
 pub mod credentials;
 #[cfg(test)]
 mod credentials_test;
@@ -118,6 +123,9 @@ pub enum DataKey {
     Admin,
     Credential(u64),
     CredentialCount,
+    Admin,
+    Profile(Address),
+    GovernanceToken,
     CourseCount,
     AchievementCount,
     UserAchievements(Address),
@@ -162,6 +170,8 @@ pub struct AetherMintContract;
 
 #[contractimpl]
 impl AetherMintContract {
+    /// Initialize the contract with an admin address and governance token
+    pub fn initialize(env: Env, admin: Address, token: Address) {
     /// Initialize the contract with optimized storage
     pub fn initialize(env: Env, admin: Address) {
         if env.storage().instance().has(&DataKey::Admin) {
@@ -170,6 +180,73 @@ impl AetherMintContract {
         
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::CredentialCount, &0u64);
+        env.storage().instance().set(&DataKey::GovernanceToken, &token);
+    }
+
+    // --- Governance Methods ---
+
+    pub fn propose(env: Env, proposer: Address, title: String, description: String) -> u64 {
+        // Simple quorum for now
+        let quorum = 100i128;
+        let voting_period = 604800; // 1 week in seconds
+        
+        let id = Governance::create_proposal(env.clone(), proposer.clone(), title, description, voting_period, quorum);
+        
+        // Emit Event
+        env.events().publish(
+            (Symbol::new(&env, "proposal_created"), id),
+            proposer
+        );
+        
+        id
+    }
+
+    pub fn vote(env: Env, voter: Address, proposal_id: u64, support: u32) {
+        let profile = Self::get_profile(env.clone(), voter.clone());
+        let token: Address = env.storage().instance().get(&DataKey::GovernanceToken).unwrap();
+        
+        let power = Governance::get_voting_power(&env, voter.clone(), token, profile.reputation);
+        
+        Governance::cast_vote(env.clone(), voter.clone(), proposal_id, support, power);
+        
+        // Emit Event
+        env.events().publish(
+            (Symbol::new(&env, "vote_cast"), proposal_id, voter),
+            (support, power)
+        );
+    }
+
+    pub fn execute(env: Env, proposal_id: u64) {
+        Governance::execute_proposal(env.clone(), proposal_id);
+    }
+
+    pub fn deposit(env: Env, amount: i128) {
+        Governance::deposit_to_treasury(env, amount);
+    }
+
+    pub fn get_treasury_balance(env: Env) -> i128 {
+        env.storage().instance()
+            .get(&GovernanceDataKey::TreasuryBalance)
+            .unwrap_or(0)
+    }
+
+    pub fn get_proposal(env: Env, proposal_id: u64) -> Proposal {
+        env.storage().instance()
+            .get(&GovernanceDataKey::Proposal(proposal_id))
+            .expect("Proposal not found")
+    }
+
+    pub fn delegate(env: Env, from: Address, to: Address) {
+        Governance::delegate(env, from, to);
+    }
+
+    pub fn get_delegate(env: Env, voter: Address) -> Address {
+        Governance::get_delegate(&env, voter)
+    }
+
+    // --- Original methods with some updates ---
+
+    /// Issue a new credential
         env.storage().instance().set(&DataKey::CourseCount, &0u64);
         env.storage().instance().set(&DataKey::AchievementCount, &0u64);
     }
@@ -215,6 +292,10 @@ impl AetherMintContract {
         env.storage().instance().set(&DataKey::Credential(credential_id), &credential);
         env.storage().instance().set(&DataKey::CredentialCount, &credential_id);
 
+        // Update reputation for recipient
+        let mut profile = Self::get_profile(env.clone(), recipient.clone());
+        profile.reputation += 10; // Bonus for earning a credential
+        env.storage().instance().set(&DataKey::Profile(recipient), &profile);
         // Update user credential count
         Self::increment_user_credential_count(&env, recipient);
 
@@ -238,11 +319,16 @@ impl AetherMintContract {
         true
     }
 
-    /// Get credential details
-    pub fn get_credential(env: Env, credential_id: u64) -> Credential {
+    /// Get user profile
+    pub fn get_profile(env: Env, user: Address) -> Profile {
         env.storage().instance()
-            .get(&DataKey::Credential(credential_id))
-            .unwrap_or_else(|| panic!("Credential not found"))
+            .get(&DataKey::Profile(user.clone()))
+            .unwrap_or_else(|| Profile {
+                owner: user.clone(),
+                credentials: Vec::new(&env),
+                achievements: Vec::new(&env),
+                reputation: 0,
+            })
     }
 
     /// Create a new course with optimized storage
@@ -279,6 +365,7 @@ impl AetherMintContract {
             flags,
         };
 
+        env.storage().instance().set(&DataKey::Credential(env.ledger().timestamp()), &course);
         env.storage().instance().set(&DataKey::Course(course_id.clone()), &course);
         env.storage().instance().set(&DataKey::CourseCount, &(course_count + 1));
 
