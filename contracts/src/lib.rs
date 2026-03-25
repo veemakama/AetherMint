@@ -33,6 +33,12 @@ mod courseMetadata_test;
 mod syncCoordination_test;
 pub mod utils;
 
+// DNA Storage modules
+pub mod dna_storage;
+pub mod dna_services;
+#[cfg(test)]
+mod dna_storage_test;
+
 
 /// Optimized user profile with packed storage
 #[contracttype]
@@ -409,5 +415,167 @@ impl AetherMintContract {
     /// Batch update expiration status for multiple credentials
     pub fn batch_update_expiration_status(env: Env, credential_ids: Vec<u64>) -> Vec<u64> {
         credential_registry::batch_update_expiration_status(&env, credential_ids)
+    }
+
+    // ===== DNA-Based Storage Integration =====
+
+    /// Store credential using DNA-based storage
+    pub fn store_credential_in_dna(
+        env: Env,
+        credential_id: u64,
+        issuer: Address,
+        recipient: Address,
+        title: String,
+        description: String,
+        course_id: String,
+        ipfs_hash: String,
+    ) -> u64 {
+        dna_storage::store_credential_in_dna(
+            &env, credential_id, issuer, recipient, title, description, course_id, ipfs_hash
+        )
+    }
+
+    /// Verify DNA-stored credential
+    pub fn verify_dna_credential(env: Env, credential_id: u64) -> bool {
+        dna_storage::verify_dna_credential(&env, credential_id)
+    }
+
+    /// Retrieve credential from DNA storage
+    pub fn retrieve_credential_from_dna(env: Env, credential_id: u64) -> Vec<u8> {
+        dna_storage::retrieve_credential_from_dna(&env, credential_id)
+    }
+
+    /// Get user's DNA-stored credentials
+    pub fn get_user_dna_credentials(env: Env, user: Address) -> Vec<u64> {
+        dna_storage::get_user_dna_credentials(&env, user)
+    }
+
+    /// Request DNA synthesis for credentials
+    pub fn request_dna_synthesis(
+        env: Env,
+        credential_ids: Vec<u64>,
+        protocol: u8, // DNAStorageProtocol as u8
+        priority: u8,
+        requester: Address,
+    ) -> u64 {
+        let protocol_enum = match protocol {
+            0 => dna_services::DNAStorageProtocol::Standard,
+            1 => dna_services::DNAStorageProtocol::Indexed,
+            2 => dna_services::DNAStorageProtocol::Redundant,
+            3 => dna_services::DNAStorageProtocol::Hybrid,
+            _ => dna_services::DNAStorageProtocol::Standard,
+        };
+        
+        dna_services::request_dna_synthesis(&env, credential_ids, protocol_enum, priority, requester)
+    }
+
+    /// Process DNA synthesis results
+    pub fn process_dna_synthesis_results(
+        env: Env,
+        request_id: u64,
+        batch_id: String,
+        success: bool,
+        processed_credentials: Vec<u64>,
+    ) -> bool {
+        dna_services::process_synthesis_results(&env, request_id, batch_id, success, processed_credentials)
+    }
+
+    /// Request DNA sequencing for verification
+    pub fn request_dna_sequencing(
+        env: Env,
+        credential_id: u64,
+        verification_level: u8,
+        requester: Address,
+    ) -> String {
+        dna_services::request_dna_sequencing(&env, credential_id, verification_level, requester)
+    }
+
+    /// Verify sequencing results
+    pub fn verify_dna_sequencing_results(
+        env: Env,
+        sequencing_id: String,
+        actual_sequence: Vec<u8>,
+        quality_score: f32,
+        coverage_depth: u32,
+        error_rate: f32,
+    ) -> bool {
+        let quality_metrics = dna_services::DNAQualityMetrics {
+            data_density: 2.0,
+            error_rate,
+            retention_time: 1000,
+            synthesis_success_rate: quality_score / 40.0, // Convert from Phred scale
+            sequencing_success_rate: coverage_depth as f32 / 100.0,
+            overall_reliability: (quality_score / 40.0 + coverage_depth as f32 / 100.0) / 2.0,
+        };
+        
+        dna_services::verify_sequencing_results(&env, sequencing_id, actual_sequence, quality_metrics)
+    }
+
+    /// Create hybrid storage reference
+    pub fn create_dna_hybrid_reference(
+        env: Env,
+        credential_id: u64,
+        blockchain_tx: String,
+        ipfs_hash: String,
+    ) -> String {
+        dna_services::create_hybrid_reference(&env, credential_id, blockchain_tx, ipfs_hash)
+    }
+
+    /// Verify hybrid storage integrity
+    pub fn verify_dna_hybrid_storage(env: Env, reference_id: String) -> bool {
+        dna_services::verify_hybrid_storage(&env, reference_id)
+    }
+
+    /// Get DNA synthesis request status
+    pub fn get_dna_synthesis_status(env: Env, request_id: u64) -> dna_services::SynthesisRequest {
+        dna_services::get_synthesis_status(&env, request_id)
+    }
+
+    /// Get DNA sequencing result
+    pub fn get_dna_sequencing_result(env: Env, sequencing_id: String) -> dna_services::SequencingResult {
+        dna_services::get_sequencing_result(&env, sequencing_id)
+    }
+
+    /// Get DNA quality metrics
+    pub fn get_dna_quality_metrics(env: Env, credential_id: u64) -> dna_services::DNAQualityMetrics {
+        dna_services::get_dna_quality_metrics(&env, credential_id)
+    }
+
+    /// Encode digital data to DNA sequence (utility function)
+    pub fn encode_data_to_dna(
+        env: Env,
+        data: Vec<u8>,
+        error_correction: u8,
+        protocol: u8,
+    ) -> dna_storage::DNASequence {
+        let error_level = match error_correction {
+            0 => dna_storage::ErrorCorrectionLevel::None,
+            1 => dna_storage::ErrorCorrectionLevel::Basic,
+            2 => dna_storage::ErrorCorrectionLevel::ReedSolomon,
+            3 => dna_storage::ErrorCorrectionLevel::Advanced,
+            _ => dna_storage::ErrorCorrectionLevel::None,
+        };
+        
+        let protocol_enum = match protocol {
+            0 => dna_storage::DNAStorageProtocol::Standard,
+            1 => dna_storage::DNAStorageProtocol::Indexed,
+            2 => dna_storage::DNAStorageProtocol::Redundant,
+            3 => dna_storage::DNAStorageProtocol::Hybrid,
+            _ => dna_storage::DNAStorageProtocol::Standard,
+        };
+        
+        dna_storage::encode_to_dna(&env, &data, error_level, protocol_enum)
+    }
+
+    /// Decode DNA sequence to digital data (utility function)
+    pub fn decode_dna_to_data(env: Env, dna_sequence: dna_storage::DNASequence) -> Vec<u8> {
+        dna_storage::decode_from_dna(&env, &dna_sequence)
+    }
+
+    /// Get total DNA credential count
+    pub fn get_dna_credential_count(env: Env) -> u64 {
+        env.storage().instance()
+            .get(&dna_storage::DNAStorageKey::DNACredentialCount)
+            .unwrap_or(0)
     }
 }
