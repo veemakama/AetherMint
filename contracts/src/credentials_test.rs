@@ -1,7 +1,10 @@
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Env, Address, String, Vec};
-use crate::credentials::{issue_credential, verify_credential, revoke_credential, get_user_credentials, get_credential, get_credential_count, CredentialKey};
+use crate::credentials::{
+    get_credential, get_credential_count, get_user_credentials, issue_credential,
+    revoke_credential, verify_credential, CredentialKey,
+};
+use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
 #[test]
 fn test_issue_and_verify_credential() {
@@ -11,7 +14,9 @@ fn test_issue_and_verify_credential() {
     let admin = Address::generate(&env);
     let recipient = Address::generate(&env);
 
-    env.storage().instance().set(&Symbol::new(&env, "admin"), &admin);
+    env.storage()
+        .instance()
+        .set(&Symbol::new(&env, "admin"), &admin);
 
     let cred_id = issue_credential(
         &env,

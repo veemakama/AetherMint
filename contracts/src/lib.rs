@@ -7,38 +7,37 @@ mod credentials_test;
 
 pub mod credential_registry;
 
-pub mod progress;
-pub mod event_logger;
-pub mod user_profile;
 pub mod analyticsStorage;
-pub mod consciousness;
-#[cfg(test)]
-mod progress_test;
-#[cfg(test)]
-mod event_logger_test;
-#[cfg(test)]
-mod user_profile_test;
 #[cfg(test)]
 mod analyticsStorage_test;
+pub mod consciousness;
 #[cfg(test)]
 mod consciousness_test;
-pub mod eventLogger;
 pub mod courseMetadata;
-pub mod syncCoordination;
-#[cfg(test)]
-mod progress_test;
 #[cfg(test)]
 mod courseMetadata_test;
+pub mod event_logger;
+#[cfg(test)]
+mod event_logger_test;
+pub mod marketplace;
+#[cfg(test)]
+mod marketplace_test;
+pub mod progress;
+#[cfg(test)]
+mod progress_test;
+pub mod syncCoordination;
 #[cfg(test)]
 mod syncCoordination_test;
+pub mod user_profile;
+#[cfg(test)]
+mod user_profile_test;
 pub mod utils;
 
 // DNA Storage modules
-pub mod dna_storage;
 pub mod dna_services;
+pub mod dna_storage;
 #[cfg(test)]
 mod dna_storage_test;
-
 
 /// Optimized user profile with packed storage
 #[contracttype]
@@ -73,7 +72,7 @@ impl PrivacyLevel {
             PrivacyLevel::FriendsOnly => 2,
         }
     }
-    
+
     pub fn from_u8(value: u8) -> Self {
         match value & 0x03 {
             0 => PrivacyLevel::Public,
@@ -167,11 +166,15 @@ impl AetherMintContract {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("Contract already initialized");
         }
-        
+
         env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::CredentialCount, &0u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::CredentialCount, &0u64);
         env.storage().instance().set(&DataKey::CourseCount, &0u64);
-        env.storage().instance().set(&DataKey::AchievementCount, &0u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::AchievementCount, &0u64);
     }
 
     /// Issue a new credential with optimized storage
@@ -184,7 +187,9 @@ impl AetherMintContract {
         course_id: String,
         ipfs_hash: String,
     ) -> u64 {
-        let admin: Address = env.storage().instance()
+        let admin: Address = env
+            .storage()
+            .instance()
             .get(&DataKey::Admin)
             .unwrap_or_else(|| panic!("Admin not found"));
 
@@ -192,7 +197,9 @@ impl AetherMintContract {
             panic!("Only admin can issue credentials");
         }
 
-        let count: u64 = env.storage().instance()
+        let count: u64 = env
+            .storage()
+            .instance()
             .get(&DataKey::CredentialCount)
             .unwrap_or(0);
         let credential_id = count + 1;
@@ -212,8 +219,12 @@ impl AetherMintContract {
             ipfs_hash,
         };
 
-        env.storage().instance().set(&DataKey::Credential(credential_id), &credential);
-        env.storage().instance().set(&DataKey::CredentialCount, &credential_id);
+        env.storage()
+            .instance()
+            .set(&DataKey::Credential(credential_id), &credential);
+        env.storage()
+            .instance()
+            .set(&DataKey::CredentialCount, &credential_id);
 
         // Update user credential count
         Self::increment_user_credential_count(&env, recipient);
@@ -223,24 +234,31 @@ impl AetherMintContract {
 
     /// Verify a credential using packed timestamp
     pub fn verify_credential(env: Env, credential_id: u64) -> bool {
-        let _admin: Address = env.storage().instance()
+        let _admin: Address = env
+            .storage()
+            .instance()
             .get(&DataKey::Admin)
             .unwrap_or_else(|| panic!("Admin not found"));
-        
-        let mut credential: Credential = env.storage().instance()
+
+        let mut credential: Credential = env
+            .storage()
+            .instance()
             .get(&DataKey::Credential(credential_id))
             .unwrap_or_else(|| panic!("Credential not found"));
 
         // Clear revocation bit (bit 0)
         credential.timestamp &= !1u64;
-        env.storage().instance().set(&DataKey::Credential(credential_id), &credential);
+        env.storage()
+            .instance()
+            .set(&DataKey::Credential(credential_id), &credential);
 
         true
     }
 
     /// Get credential details
     pub fn get_credential(env: Env, credential_id: u64) -> Credential {
-        env.storage().instance()
+        env.storage()
+            .instance()
             .get(&DataKey::Credential(credential_id))
             .unwrap_or_else(|| panic!("Credential not found"))
     }
@@ -253,7 +271,9 @@ impl AetherMintContract {
         description: String,
         price: u64,
     ) -> String {
-        let admin: Address = env.storage().instance()
+        let admin: Address = env
+            .storage()
+            .instance()
             .get(&DataKey::Admin)
             .unwrap_or_else(|| panic!("Admin not found"));
 
@@ -261,12 +281,14 @@ impl AetherMintContract {
             panic!("Only admin can create courses");
         }
 
-        let course_count: u64 = env.storage().instance()
+        let course_count: u64 = env
+            .storage()
+            .instance()
             .get(&DataKey::CourseCount)
             .unwrap_or(0);
-        
+
         let course_id = format!("course_{}", course_count + 1);
-        
+
         // Pack flags - bit 0 = active status
         let flags = 1u8; // Active = true
 
@@ -279,8 +301,12 @@ impl AetherMintContract {
             flags,
         };
 
-        env.storage().instance().set(&DataKey::Course(course_id.clone()), &course);
-        env.storage().instance().set(&DataKey::CourseCount, &(course_count + 1));
+        env.storage()
+            .instance()
+            .set(&DataKey::Course(course_id.clone()), &course);
+        env.storage()
+            .instance()
+            .set(&DataKey::CourseCount, &(course_count + 1));
 
         course_id
     }
@@ -288,7 +314,11 @@ impl AetherMintContract {
     /// Get user profile with optimized storage
     pub fn get_profile(env: Env, user: Address) -> Profile {
         // Try to get from optimized storage first
-        if let Some(user_profile) = env.storage().instance().get::<_, UserProfile>(&ProfileKey::User(user.clone())) {
+        if let Some(user_profile) = env
+            .storage()
+            .instance()
+            .get::<_, UserProfile>(&ProfileKey::User(user.clone()))
+        {
             Profile {
                 owner: user,
                 credential_count: user_profile.credential_count,
@@ -308,37 +338,52 @@ impl AetherMintContract {
 
     /// Get total credential count
     pub fn get_credential_count(env: Env) -> u64 {
-        env.storage().instance()
+        env.storage()
+            .instance()
             .get(&DataKey::CredentialCount)
             .unwrap_or(0)
     }
 
     /// Helper function to increment user credential count
     fn increment_user_credential_count(env: &Env, user: Address) {
-        if let Some(mut profile) = env.storage().instance().get::<_, UserProfile>(&ProfileKey::User(user.clone())) {
+        if let Some(mut profile) = env
+            .storage()
+            .instance()
+            .get::<_, UserProfile>(&ProfileKey::User(user.clone()))
+        {
             profile.credential_count += 1;
-            env.storage().instance().set(&ProfileKey::User(user), &profile);
+            env.storage()
+                .instance()
+                .set(&ProfileKey::User(user), &profile);
         }
     }
 
     /// Helper function to increment user achievement count  
     fn increment_user_achievement_count(env: &Env, user: Address) {
-        if let Some(mut profile) = env.storage().instance().get::<_, UserProfile>(&ProfileKey::User(user.clone())) {
+        if let Some(mut profile) = env
+            .storage()
+            .instance()
+            .get::<_, UserProfile>(&ProfileKey::User(user.clone()))
+        {
             profile.achievement_count += 1;
-            env.storage().instance().set(&ProfileKey::User(user), &profile);
+            env.storage()
+                .instance()
+                .set(&ProfileKey::User(user), &profile);
         }
     }
 
     /// Get total course count
     pub fn get_course_count(env: Env) -> u64 {
-        env.storage().instance()
+        env.storage()
+            .instance()
             .get(&DataKey::CourseCount)
             .unwrap_or(0)
     }
 
     /// Get total achievement count
     pub fn get_achievement_count(env: Env) -> u64 {
-        env.storage().instance()
+        env.storage()
+            .instance()
             .get(&DataKey::AchievementCount)
             .unwrap_or(0)
     }
@@ -357,7 +402,14 @@ impl AetherMintContract {
         validity_duration: u64,
     ) -> u64 {
         credential_registry::issue_credential_with_expiration(
-            &env, issuer, recipient, title, description, course_id, ipfs_hash, validity_duration
+            &env,
+            issuer,
+            recipient,
+            title,
+            description,
+            course_id,
+            ipfs_hash,
+            validity_duration,
         )
     }
 
@@ -378,7 +430,10 @@ impl AetherMintContract {
     }
 
     /// Get credential with current expiration status
-    pub fn get_credential_with_status(env: Env, credential_id: u64) -> credential_registry::CredentialRegistry {
+    pub fn get_credential_with_status(
+        env: Env,
+        credential_id: u64,
+    ) -> credential_registry::CredentialRegistry {
         credential_registry::get_credential(&env, credential_id)
     }
 
@@ -393,7 +448,10 @@ impl AetherMintContract {
     }
 
     /// Get renewal history for a credential
-    pub fn get_credential_renewal_history(env: Env, credential_id: u64) -> Vec<credential_registry::RenewalRecord> {
+    pub fn get_credential_renewal_history(
+        env: Env,
+        credential_id: u64,
+    ) -> Vec<credential_registry::RenewalRecord> {
         credential_registry::get_renewal_history(&env, credential_id)
     }
 
@@ -431,7 +489,14 @@ impl AetherMintContract {
         ipfs_hash: String,
     ) -> u64 {
         dna_storage::store_credential_in_dna(
-            &env, credential_id, issuer, recipient, title, description, course_id, ipfs_hash
+            &env,
+            credential_id,
+            issuer,
+            recipient,
+            title,
+            description,
+            course_id,
+            ipfs_hash,
         )
     }
 
@@ -465,8 +530,14 @@ impl AetherMintContract {
             3 => dna_services::DNAStorageProtocol::Hybrid,
             _ => dna_services::DNAStorageProtocol::Standard,
         };
-        
-        dna_services::request_dna_synthesis(&env, credential_ids, protocol_enum, priority, requester)
+
+        dna_services::request_dna_synthesis(
+            &env,
+            credential_ids,
+            protocol_enum,
+            priority,
+            requester,
+        )
     }
 
     /// Process DNA synthesis results
@@ -477,7 +548,13 @@ impl AetherMintContract {
         success: bool,
         processed_credentials: Vec<u64>,
     ) -> bool {
-        dna_services::process_synthesis_results(&env, request_id, batch_id, success, processed_credentials)
+        dna_services::process_synthesis_results(
+            &env,
+            request_id,
+            batch_id,
+            success,
+            processed_credentials,
+        )
     }
 
     /// Request DNA sequencing for verification
@@ -507,8 +584,13 @@ impl AetherMintContract {
             sequencing_success_rate: coverage_depth as f32 / 100.0,
             overall_reliability: (quality_score / 40.0 + coverage_depth as f32 / 100.0) / 2.0,
         };
-        
-        dna_services::verify_sequencing_results(&env, sequencing_id, actual_sequence, quality_metrics)
+
+        dna_services::verify_sequencing_results(
+            &env,
+            sequencing_id,
+            actual_sequence,
+            quality_metrics,
+        )
     }
 
     /// Create hybrid storage reference
@@ -532,12 +614,18 @@ impl AetherMintContract {
     }
 
     /// Get DNA sequencing result
-    pub fn get_dna_sequencing_result(env: Env, sequencing_id: String) -> dna_services::SequencingResult {
+    pub fn get_dna_sequencing_result(
+        env: Env,
+        sequencing_id: String,
+    ) -> dna_services::SequencingResult {
         dna_services::get_sequencing_result(&env, sequencing_id)
     }
 
     /// Get DNA quality metrics
-    pub fn get_dna_quality_metrics(env: Env, credential_id: u64) -> dna_services::DNAQualityMetrics {
+    pub fn get_dna_quality_metrics(
+        env: Env,
+        credential_id: u64,
+    ) -> dna_services::DNAQualityMetrics {
         dna_services::get_dna_quality_metrics(&env, credential_id)
     }
 
@@ -555,7 +643,7 @@ impl AetherMintContract {
             3 => dna_storage::ErrorCorrectionLevel::Advanced,
             _ => dna_storage::ErrorCorrectionLevel::None,
         };
-        
+
         let protocol_enum = match protocol {
             0 => dna_storage::DNAStorageProtocol::Standard,
             1 => dna_storage::DNAStorageProtocol::Indexed,
@@ -563,7 +651,7 @@ impl AetherMintContract {
             3 => dna_storage::DNAStorageProtocol::Hybrid,
             _ => dna_storage::DNAStorageProtocol::Standard,
         };
-        
+
         dna_storage::encode_to_dna(&env, &data, error_level, protocol_enum)
     }
 
@@ -574,7 +662,8 @@ impl AetherMintContract {
 
     /// Get total DNA credential count
     pub fn get_dna_credential_count(env: Env) -> u64 {
-        env.storage().instance()
+        env.storage()
+            .instance()
             .get(&dna_storage::DNAStorageKey::DNACredentialCount)
             .unwrap_or(0)
     }
