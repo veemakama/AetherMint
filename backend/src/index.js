@@ -26,6 +26,7 @@ const contentRoutes = require('./routes/content');
 const transactionRoutes = require('./routes/transactions');
 const acoRoutes = require('./routes/aco');
 const federatedLearningRoutes = require('./routes/federatedLearning');
+const swarmLearningRoutes = require('./routes/swarmLearning');
 
 
 // Initialize Express app
@@ -67,6 +68,7 @@ app.use('/api/rbac', rbacRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/aco', acoRoutes);
 app.use('/api/federated-learning', federatedLearningRoutes);
+app.use('/api/swarm-learning', swarmLearningRoutes);
 
 
 // Root endpoint
@@ -123,6 +125,7 @@ const transactionProcessor = require('./workers/transactionProcessor');
 const transactionEvents = require('./events/transactionEvents');
 
 const PORT = process.env.PORT || 3001;
+
 
 
 });
