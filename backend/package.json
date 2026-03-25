@@ -47,7 +47,11 @@
     "socket.io": "^4.7.2",
     "twilio": "^5.13.1",
     "uuid": "^9.0.1",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "node-forge": "^1.3.1",
+    "crypto": "^1.0.1",
+    "libsodium-wrappers": "^0.7.13",
+    "oqs": "^0.9.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.22.15",
