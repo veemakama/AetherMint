@@ -77,6 +77,7 @@ const holographicRoutes = resolveRoute(require('./routes/holographicRoutes'));
 const acoRoutes = require('./routes/aco');
 const federatedLearningRoutes = require('./routes/federatedLearning');
 const swarmLearningRoutes = require('./routes/swarmLearning');
+const smartWalletRoutes = resolveRoute(require('./routes/smartWallet'));
 
 // Initialize Express app
 const app = express();
@@ -112,6 +113,7 @@ app.use('/api/holographic', holographicRoutes);
 app.use('/api/aco', acoRoutes);
 app.use('/api/federated-learning', federatedLearningRoutes);
 app.use('/api/swarm-learning', swarmLearningRoutes);
+app.use('/api/smart-wallet', smartWalletRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
