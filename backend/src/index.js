@@ -36,6 +36,7 @@ const holographicRoutes = resolveRoute(require('./routes/holographicRoutes'));
 // Upstream routes
 const acoRoutes = require('./routes/aco');
 const federatedLearningRoutes = require('./routes/federatedLearning');
+const swarmLearningRoutes = require('./routes/swarmLearning');
 
 // Initialize Express app
 const app = express();
@@ -69,6 +70,7 @@ app.use('/api/collaboration', collaborationRoutes);
 app.use('/api/holographic', holographicRoutes);
 app.use('/api/aco', acoRoutes);
 app.use('/api/federated-learning', federatedLearningRoutes);
+app.use('/api/swarm-learning', swarmLearningRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -137,13 +139,7 @@ async function startServer() {
   }
 }
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  await transactionQueue.stopProcessing();
-  await transactionProcessor.stop();
-  await transactionEvents.stopListening();
-  process.exit(0);
+
 });
 
 process.on('SIGINT', async () => {
