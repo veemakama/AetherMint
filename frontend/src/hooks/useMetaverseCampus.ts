@@ -21,6 +21,8 @@ const MOCK_PEERS: CampusUser[] = Array.from({ length: 8 }, (_, i) => ({
   position: [Math.cos((i / 8) * Math.PI * 2) * 6, 0, Math.sin((i / 8) * Math.PI * 2) * 6],
   currentBuilding: null,
   isSpeaking: false,
+  isMuted: true,
+  isCameraOn: false,
 }));
 
 export function useMetaverseCampus() {
@@ -41,6 +43,8 @@ export function useMetaverseCampus() {
       position: [0, 0, 0],
       currentBuilding: null,
       isSpeaking: false,
+      isMuted: false,
+      isCameraOn: false,
     };
     setState(s => ({ ...s, localUser: user }));
   }, []);

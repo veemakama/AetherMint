@@ -26,6 +26,8 @@ export interface CampusUser {
   position: [number, number, number];
   currentBuilding: string | null;
   isSpeaking: boolean;
+  isMuted: boolean;
+  isCameraOn: boolean;
 }
 
 export interface MetaverseState {

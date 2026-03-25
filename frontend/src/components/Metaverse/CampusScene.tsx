@@ -152,7 +152,57 @@ function Avatar({ user, isLocal }: { user: CampusUser; isLocal?: boolean }) {
   );
 }
 
+// ─── Tree ─────────────────────────────────────────────────────────────────────
+
+function Tree({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 1, 0]} castShadow>
+        <cylinderGeometry args={[0.15, 0.2, 2, 8]} />
+        <meshStandardMaterial color="#78350f" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 2.8, 0]} castShadow>
+        <coneGeometry args={[1.2, 2.5, 8]} />
+        <meshStandardMaterial color="#166534" roughness={0.8} />
+      </mesh>
+      <mesh position={[0, 3.8, 0]} castShadow>
+        <coneGeometry args={[0.8, 1.8, 8]} />
+        <meshStandardMaterial color="#15803d" roughness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+// ─── Lamp Post ────────────────────────────────────────────────────────────────
+
+function LampPost({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      <mesh position={[0, 2, 0]} castShadow>
+        <cylinderGeometry args={[0.06, 0.08, 4, 8]} />
+        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 4.1, 0]}>
+        <sphereGeometry args={[0.25, 12, 12]} />
+        <meshStandardMaterial color="#fef3c7" emissive="#fbbf24" emissiveIntensity={1.5} />
+      </mesh>
+      <pointLight position={[0, 4.1, 0]} intensity={0.8} color="#fbbf24" distance={8} />
+    </group>
+  );
+}
+
 // ─── Ground & Campus Layout ───────────────────────────────────────────────────
+
+const TREE_POSITIONS: [number, number, number][] = [
+  [-7, 0, -4], [7, 0, -4], [-7, 0, 4], [7, 0, 4],
+  [-14, 0, -14], [14, 0, -14], [-14, 0, 14], [14, 0, 14],
+  [-20, 0, 0], [20, 0, 0], [0, 0, -22], [0, 0, 20],
+];
+
+const LAMP_POSITIONS: [number, number, number][] = [
+  [-4, 0, -4], [4, 0, -4], [-4, 0, 4], [4, 0, 4],
+  [-10, 0, 0], [10, 0, 0], [0, 0, -10], [0, 0, 10],
+];
 
 function CampusGround() {
   return (
@@ -180,15 +230,27 @@ function CampusGround() {
         <meshStandardMaterial color="#4b5563" roughness={0.7} />
       </mesh>
 
-      {/* Fountain */}
+      {/* Fountain basin */}
       <mesh position={[0, 0.3, 0]}>
         <cylinderGeometry args={[1.5, 1.8, 0.6, 32]} />
         <meshStandardMaterial color="#6b7280" roughness={0.5} metalness={0.3} />
       </mesh>
+      {/* Fountain water surface */}
+      <mesh position={[0, 0.62, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[1.4, 32]} />
+        <meshStandardMaterial color="#38bdf8" transparent opacity={0.6} roughness={0.1} metalness={0.2} />
+      </mesh>
+      {/* Fountain spout */}
       <mesh position={[0, 0.7, 0]}>
-        <cylinderGeometry args={[0.2, 0.2, 0.8, 16]} />
+        <cylinderGeometry args={[0.08, 0.08, 0.8, 8]} />
         <meshStandardMaterial color="#9ca3af" metalness={0.6} />
       </mesh>
+
+      {/* Trees */}
+      {TREE_POSITIONS.map((pos, i) => <Tree key={i} position={pos} />)}
+
+      {/* Lamp posts */}
+      {LAMP_POSITIONS.map((pos, i) => <LampPost key={i} position={pos} />)}
     </>
   );
 }
