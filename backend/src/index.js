@@ -7,6 +7,9 @@ const { createServer } = require('http');
 const { connectRedis } = require('./utils/redis');
 const { initWebsocketService } = require('./services/websocketService');
 const { setSyncWebsocketEmitter } = require('./services/syncService');
+const { initCollaborationService } = require('./services/initCollaboration');
+const { Redis } = require('ioredis');
+const SecureRealtimeCommunication = require('./services/secureRealtimeCommunication').default;
 
 const transactionQueue = require('./services/transactionQueue');
 const transactionProcessor = require('./workers/transactionProcessor');
@@ -33,6 +36,7 @@ const notificationRoutes = resolveRoute(require('./routes/notificationRoutes'));
 // Your branch routes
 const collaborationRoutes = resolveRoute(require('./routes/collaborationRoutes'));
 const holographicRoutes = resolveRoute(require('./routes/holographicRoutes'));
+const secureCommRoutes = resolveRoute(require('./routes/secureCommRoutes'));
 
 // Upstream routes
 const acoRoutes = require('./routes/aco');
@@ -44,6 +48,15 @@ const smartWalletRoutes = resolveRoute(require('./routes/smartWallet'));
 const app = express();
 const server = createServer(app);
 const websocketService = initWebsocketService(server);
+const collaborationService = initCollaborationService(server);
+
+// Initialize secure communication
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  password: process.env.REDIS_PASSWORD
+});
+const secureCommService = new SecureRealtimeCommunication(websocketService.io, redis);
 
 setSyncWebsocketEmitter((userId, event, data) => {
   websocketService.emitToUser(userId, event, data);
@@ -75,6 +88,7 @@ app.use('/api/aco', acoRoutes);
 app.use('/api/federated-learning', federatedLearningRoutes);
 app.use('/api/swarm-learning', swarmLearningRoutes);
 app.use('/api/smart-wallet', smartWalletRoutes);
+app.use('/api/secure-comm', secureCommRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -134,6 +148,7 @@ async function startServer() {
       console.log(`🔮 Holographic Storage API available at /api/holographic`);
       console.log(`🧠 ACO API available at /api/aco`);
       console.log(`🌐 Federated Learning API available at /api/federated-learning`);
+      console.log(`🔐 Quantum-Resistant Secure Communication API available at /api/secure-comm`);
       console.log(`🏥 Health check available at /api/health`);
       console.log(`✅ Transaction Queue System initialized successfully`);
     });
@@ -142,9 +157,6 @@ async function startServer() {
     process.exit(1);
   }
 }
-
-
-});
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
