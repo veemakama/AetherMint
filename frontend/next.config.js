@@ -3,6 +3,7 @@ const nextConfig = {
   experimental: {
     appDir: true,
   },
+  transpilePackages: ['three', '@react-three/fiber', '@react-three/drei'],
   env: {
     NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS: process.env.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS,
   },
