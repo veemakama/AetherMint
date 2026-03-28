@@ -11,6 +11,18 @@ const transactionQueue = require('./services/transactionQueue');
 const transactionProcessor = require('./workers/transactionProcessor');
 const transactionEvents = require('./events/transactionEvents');
 
+// Import security middleware
+const {
+  securityPerformanceTracker,
+  checkBlacklist,
+  ddosProtection,
+  botDetection,
+  advancedRestrictions,
+  requestSanitizer
+} = require('./middleware/security');
+const { globalLimiter } = require('./middleware/rateLimiter');
+const { authenticateToken, requireAdmin } = require('./middleware/auth');
+
 // Load environment variables
 dotenv.config();
 
