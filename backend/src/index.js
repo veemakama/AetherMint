@@ -102,6 +102,10 @@ app.use('/api/autonomous-agents', autonomousAgentsRoutes);
 const gamificationRoutes = require('./routes/gamification');
 app.use('/api/gamification', gamificationRoutes);
 
+// Bridge routes
+const bridgeRoutes = require('./routes/bridge');
+app.use('/api/bridge', bridgeRoutes);
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
