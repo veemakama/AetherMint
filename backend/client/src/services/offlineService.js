@@ -1,7 +1,7 @@
 // Offline Content Management Service
 class OfflineContentService {
   constructor() {
-    this.dbName = 'StarkedEducationOffline';
+    this.dbName = 'AetherMintEducationOffline';
     this.dbVersion = 1;
     this.db = null;
     this.deviceId = this.getDeviceId();

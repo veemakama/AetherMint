@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec, U256};
+use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
 /// Bit-packed storage utilities for gas optimization
 #[contracttype]
@@ -39,23 +39,21 @@ impl PackedUserFlags {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PackedTimestamps {
-    /// Combines creation and update timestamps (32 bits each)
-    pub packed: U256,
+    /// Combines creation and update timestamps (64 bits each)
+    pub packed: u128,
 }
 
 impl PackedTimestamps {
     pub fn new(created_at: u64, updated_at: u64) -> Self {
-        let mut packed = U256::from_u32(created_at as u32);
-        packed = packed << 32;
-        packed |= U256::from_u32(updated_at as u32);
+        let packed = (created_at as u128) << 64 | (updated_at as u128);
         Self { packed }
     }
 
     pub fn created_at(&self) -> u64 {
-        (self.packed >> 32).to_u32() as u64
+        (self.packed >> 64) as u64
     }
     pub fn updated_at(&self) -> u64 {
-        (self.packed & U256::from_u32(u32::MAX)).to_u32() as u64
+        (self.packed & 0xFFFFFFFFFFFFFFFF) as u64
     }
 }
 
@@ -137,13 +135,13 @@ impl StorageUtils {
         let core_data = (username, email, bio, avatar_url);
         env.storage()
             .instance()
-            .set(&StorageKey::User(user), &core_data);
+            .set(&StorageKey::User(user.clone()), &core_data);
 
         // Store flags in single byte
         let flags = PackedUserFlags::new(privacy_level, verified, active);
         env.storage()
             .instance()
-            .set(&StorageKey::UserFlags(user), &flags);
+            .set(&StorageKey::UserFlags(user.clone()), &flags);
 
         // Store timestamps in single U256
         let now = env.ledger().timestamp();

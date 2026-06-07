@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/features.css';
 
-const AssessmentInterface = ({ assessmentId, onComplete }) => {
+const AssessmentInterface = ({ assessmentId, onComplete }: { assessmentId: string; onComplete: (status: string) => void }) => {
   const [isFlagged, setIsFlagged] = useState(false);
-  const [anomalies, setAnomalies] = useState([]);
+  const [anomalies, setAnomalies] = useState<Array<{time: string; type: string}>>([]);
   const [sessionStatus, setSessionStatus] = useState('initializing');
-  const videoRef = useRef(null);
-  const [timeLeft, setTimeLeft] = useState(3600); // 1 hour
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(3600); // 1 hour
 
   useEffect(() => {
     // 1. Lockdown Mode Mockup: detect tab switching/blur
@@ -36,7 +36,7 @@ const AssessmentInterface = ({ assessmentId, onComplete }) => {
     }
   }, [timeLeft]);
 
-  const formatTime = (seconds) => {
+  const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -48,7 +48,7 @@ const AssessmentInterface = ({ assessmentId, onComplete }) => {
         <h1 style={{ margin: 0, textShadow: '0 0 20px rgba(0,212,255,0.4)' }}>
           DECERNTRALIZED ASSESSMENT PROCTORING
         </h1>
-        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: var('--primary-accent') }}>
+        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary-accent)' }}>
           {formatTime(timeLeft)}
         </div>
       </div>

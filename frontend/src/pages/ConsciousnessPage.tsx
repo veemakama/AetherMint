@@ -2,6 +2,11 @@ import React from 'react';
 import Head from 'next/head';
 import ConsciousnessUpload from '../components/ConsciousnessUpload';
 
+// Dynamic page - uses wallet hooks that require client-side context
+export async function getServerSideProps() {
+  return { props: {} };
+}
+
 const ConsciousnessPage: React.FC = () => {
   return (
     <>

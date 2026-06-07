@@ -1,4 +1,7 @@
-import { performanceMonitor, PerformanceAlert } from './performance-monitor';
+import { getPerformanceMonitor, PerformanceAlert } from './performance-monitor';
+
+const performanceMonitor =
+  typeof window !== 'undefined' ? getPerformanceMonitor() : null;
 
 export interface AlertConfig {
   enabled: boolean;
@@ -39,12 +42,16 @@ class PerformanceAlertService {
   private alertHistory: PerformanceAlert[] = [];
 
   constructor() {
-    this.loadConfig();
-    this.setupAlertListeners();
+    // Only run browser-specific setup in browser environment
+    if (typeof window !== 'undefined') {
+      this.loadConfig();
+      this.setupAlertListeners();
+    }
   }
 
   private loadConfig() {
     try {
+      if (typeof window === 'undefined') return;
       const stored = localStorage.getItem('performance-alert-config');
       if (stored) {
         this.config = { ...this.config, ...JSON.parse(stored) };
@@ -56,6 +63,7 @@ class PerformanceAlertService {
 
   private saveConfig() {
     try {
+      if (typeof window === 'undefined') return;
       localStorage.setItem('performance-alert-config', JSON.stringify(this.config));
     } catch (error) {
       console.warn('Failed to save alert config:', error);
@@ -160,13 +168,13 @@ class PerformanceAlertService {
   private sendToastNotification(alert: PerformanceAlert, message: string, severity: string) {
     // This would integrate with a toast notification system
     // For now, we'll use a simple browser notification if available
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       new Notification('Performance Alert', {
         body: message,
         icon: '/favicon.ico',
         tag: `performance-${alert.metric}`,
       });
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
+    } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'denied') {
       Notification.requestPermission();
     }
   }
@@ -215,9 +223,10 @@ class PerformanceAlertService {
       threshold: this.config.thresholds[metric].warning,
       severity: 'high',
       timestamp: Date.now(),
-      url: window.location.href,
+      url: typeof window !== 'undefined' ? window.location.href : '',
     };
 
+    if (typeof window === 'undefined') return;
     this.processAlert(testAlert);
   }
 

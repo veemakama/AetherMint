@@ -11,7 +11,6 @@ module.exports = {
       'ko',
       'ar'
     ],
-    localeDetection: true,
   },
   reloadOnPrerender: process.env.NODE_ENV === 'development',
   serializeConfig: false,

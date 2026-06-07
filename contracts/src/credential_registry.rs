@@ -1,5 +1,5 @@
 use crate::utils::storage::{EntityType, StorageUtils};
-use soroban_sdk::{contracttype, panic_with_error, Address, Env, String, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
 /// Credential status enumeration
 #[contracttype]

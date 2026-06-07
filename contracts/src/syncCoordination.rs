@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, Env, Map, String, Symbol, Vec, U256,
+    contract, contractimpl, contracttype, Address, Env, Map, String, Symbol, Vec,
 };
 
 #[contracttype]
@@ -148,7 +148,7 @@ impl SyncCoordinationContract {
             .get(&SyncCoordinationKey::DeviceCount)
             .unwrap_or(0);
 
-        let device_id = format!("device_{}", device_count + 1);
+        let device_id = crate::u64_to_string(&env, device_count + 1, "device_");
         let timestamp = env.ledger().timestamp();
 
         let device = Device {
@@ -200,7 +200,7 @@ impl SyncCoordinationContract {
             .get(&SyncCoordinationKey::SessionCount)
             .unwrap_or(0);
 
-        let session_id = format!("session_{}", session_count + 1);
+        let session_id = crate::u64_to_string(&env, session_count + 1, "session_");
         let timestamp = env.ledger().timestamp();
 
         let session = SyncSession {
@@ -263,7 +263,7 @@ impl SyncCoordinationContract {
             .get(&SyncCoordinationKey::EntryCount)
             .unwrap_or(0);
 
-        let entry_id = format!("entry_{}", entry_count + 1);
+        let entry_id = crate::u64_to_string(&env, entry_count + 1, "entry_");
         let timestamp = env.ledger().timestamp();
 
         let sync_entry = SyncEntry {
@@ -314,7 +314,7 @@ impl SyncCoordinationContract {
         winning_entry_id: String,
         resolver: Address,
     ) -> bool {
-        let mut conflict = Self::get_sync_conflict(env, conflict_id.clone());
+        let mut conflict = Self::get_sync_conflict(env.clone(), conflict_id.clone());
 
         // Verify resolver is authorized (admin or conflict owner)
         let admin: Address = env
@@ -330,24 +330,19 @@ impl SyncCoordinationContract {
         // Apply resolution strategy
         match resolution {
             ConflictResolution::LastWriteWins => {
-                // Keep the entry with latest timestamp
-                Self::apply_last_write_wins(env, &conflict, winning_entry_id);
+                Self::apply_last_write_wins(env.clone(), &conflict, winning_entry_id.clone());
             }
             ConflictResolution::FirstWriteWins => {
-                // Keep the entry with earliest timestamp
-                Self::apply_first_write_wins(env, &conflict, winning_entry_id);
+                Self::apply_first_write_wins(env.clone(), &conflict, winning_entry_id.clone());
             }
             ConflictResolution::TimestampWins => {
-                // Use timestamp as tiebreaker
-                Self::apply_timestamp_wins(env, &conflict, winning_entry_id);
+                Self::apply_timestamp_wins(env.clone(), &conflict, winning_entry_id.clone());
             }
             ConflictResolution::ManualReview => {
-                // Mark for manual review
-                Self::apply_manual_review(env, &conflict, winning_entry_id);
+                Self::apply_manual_review(env.clone(), &conflict, winning_entry_id.clone());
             }
             ConflictResolution::MergeData => {
-                // Attempt to merge conflicting entries
-                Self::apply_merge_data(env, &conflict, winning_entry_id);
+                Self::apply_merge_data(env.clone(), &conflict, winning_entry_id.clone());
             }
         }
 
@@ -371,7 +366,7 @@ impl SyncCoordinationContract {
         success: bool,
         error_message: Option<String>,
     ) -> bool {
-        let mut session = Self::get_sync_session(env, session_id.clone());
+        let mut session = Self::get_sync_session(env.clone(), session_id.clone());
 
         if session.status != SyncStatus::InProgress {
             panic!("Session is not in progress");
@@ -390,7 +385,7 @@ impl SyncCoordinationContract {
             .set(&SyncCoordinationKey::SyncSession(session_id), &session);
 
         // Update device last sync
-        let mut device = Self::get_device(env, session.device_id.clone());
+        let mut device = Self::get_device(env.clone(), session.device_id.clone());
         device.last_sync = env.ledger().timestamp();
         device.sync_version += 1;
         env.storage()
@@ -456,7 +451,7 @@ impl SyncCoordinationContract {
 
     /// Deactivate a device
     pub fn deactivate_device(env: Env, user_address: Address, device_id: String) -> bool {
-        let mut device = Self::get_device(env, device_id.clone());
+        let mut device = Self::get_device(env.clone(), device_id.clone());
 
         if device.user_address != user_address {
             panic!("Device does not belong to user");
@@ -478,7 +473,7 @@ impl SyncCoordinationContract {
         device_id: String,
         capabilities: Vec<String>,
     ) -> bool {
-        let mut device = Self::get_device(env, device_id.clone());
+        let mut device = Self::get_device(env.clone(), device_id.clone());
 
         if device.user_address != user_address {
             panic!("Device does not belong to user");
@@ -509,8 +504,7 @@ impl SyncCoordinationContract {
 
     /// Apply last-write-wins resolution
     fn apply_last_write_wins(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
-        // Update the winning entry and mark others as superseded
-        let winning_entry = Self::get_sync_entry(env, winning_entry_id.clone());
+        let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
         updated_entry.sync_status = SyncStatus::Completed;
         updated_entry.conflict_resolution = Some(ConflictResolution::LastWriteWins);
@@ -522,7 +516,7 @@ impl SyncCoordinationContract {
 
     /// Apply first-write-wins resolution
     fn apply_first_write_wins(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
-        let winning_entry = Self::get_sync_entry(env, winning_entry_id.clone());
+        let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
         updated_entry.sync_status = SyncStatus::Completed;
         updated_entry.conflict_resolution = Some(ConflictResolution::FirstWriteWins);
@@ -534,7 +528,7 @@ impl SyncCoordinationContract {
 
     /// Apply timestamp-wins resolution
     fn apply_timestamp_wins(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
-        let winning_entry = Self::get_sync_entry(env, winning_entry_id.clone());
+        let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
         updated_entry.sync_status = SyncStatus::Completed;
         updated_entry.conflict_resolution = Some(ConflictResolution::TimestampWins);
@@ -546,9 +540,9 @@ impl SyncCoordinationContract {
 
     /// Apply manual review resolution
     fn apply_manual_review(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
-        let winning_entry = Self::get_sync_entry(env, winning_entry_id.clone());
+        let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
-        updated_entry.sync_status = SyncStatus::Pending; // Requires manual review
+        updated_entry.sync_status = SyncStatus::Pending;
         updated_entry.conflict_resolution = Some(ConflictResolution::ManualReview);
         env.storage().instance().set(
             &SyncCoordinationKey::SyncEntry(winning_entry_id),
@@ -558,11 +552,10 @@ impl SyncCoordinationContract {
 
     /// Apply merge data resolution
     fn apply_merge_data(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
-        let winning_entry = Self::get_sync_entry(env, winning_entry_id.clone());
-        let other_entry = Self::get_sync_entry(env, conflict.entry_id_2.clone());
+        let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
+        let other_entry = Self::get_sync_entry(env.clone(), conflict.entry_id_2.clone());
 
-        // Simple merge: combine payloads
-        let merged_payload = format!("{}|{}", winning_entry.payload, other_entry.payload);
+        let merged_payload = crate::str_cat(&env, &winning_entry.payload, &other_entry.payload);
 
         let mut updated_entry = winning_entry;
         updated_entry.payload = merged_payload;

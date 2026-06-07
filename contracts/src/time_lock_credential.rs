@@ -1,7 +1,6 @@
-#![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, Env, String, Vec, U256, u256,
-    Map, BytesN, IntoVal,
+    contract, contractimpl, contracttype, Address, Env, String, Vec,
+    Map, BytesN,
 };
 
 /// Time-locked credential release system for Stellar blockchain
@@ -85,12 +84,12 @@ impl TimeLockCredential {
         credential_hash: BytesN<32>,
         metadata: String,
         release_time: u64,
-    ) -> Result<u64, String> {
+    ) -> u64 {
         issuer.require_auth();
 
         let current_time = env.ledger().timestamp();
         if release_time <= current_time {
-            return Err("Release time must be in the future".to_string());
+            panic!("Release time must be in the future");
         }
 
         let credential_id: u64 = env.storage().persistent()
@@ -147,52 +146,50 @@ impl TimeLockCredential {
         env.storage().persistent().set(&StorageKey::TotalCredentials, &(total + 1));
 
         // Log audit entry
-        Self::log_audit(&env, "ISSUE_CREDENTIAL".to_string(), credential_id, issuer.clone(), "Credential issued successfully".to_string())?;
+        Self::log_audit(&env, String::from_str(&env, "ISSUE_CREDENTIAL"), credential_id, issuer.clone(), String::from_str(&env, "Credential issued successfully"));
 
-        Ok(credential_id)
+        credential_id
     }
 
     /// Release a credential if the time lock has expired
-    pub fn release_credential(env: Env, credential_id: u64, caller: Address) -> Result<(), String> {
+    pub fn release_credential(env: Env, credential_id: u64, caller: Address) {
         caller.require_auth();
 
         let mut credential: TimeLockedCredential = env.storage().persistent()
             .get(&StorageKey::Credential(credential_id))
-            .ok_or_else(|| "Credential not found".to_string())?;
+            .unwrap_or_else(|| panic!("Credential not found"));
 
         if credential.is_released {
-            return Err("Credential already released".to_string());
+            panic!("Credential already released");
         }
 
         if credential.is_revoked {
-            return Err("Credential has been revoked".to_string());
+            panic!("Credential has been revoked");
         }
 
         let current_time = env.ledger().timestamp();
         if current_time < credential.release_time {
-            return Err("Time lock not yet expired".to_string());
+            panic!("Time lock not yet expired");
         }
 
         // Only recipient or issuer can release
         if caller != credential.recipient && caller != credential.issuer {
-            return Err("Unauthorized caller".to_string());
+            panic!("Unauthorized caller");
         }
 
         credential.is_released = true;
         env.storage().persistent().set(&StorageKey::Credential(credential_id), &credential);
 
         // Log audit entry
-        Self::log_audit(&env, "RELEASE_CREDENTIAL".to_string(), credential_id, caller, "Credential released".to_string())?;
+        Self::log_audit(&env, String::from_str(&env, "RELEASE_CREDENTIAL"), credential_id, caller, String::from_str(&env, "Credential released"));
 
         // Emit event
         env.events().publish((
-            "credential_released",
+            Symbol::from_str(&env, "credential_released"),
             credential_id,
             credential.recipient,
             credential.issuer,
-        ),);
-
-        Ok(())
+        ));
     }
 
     /// Batch release multiple credentials (gas optimized)
@@ -200,36 +197,31 @@ impl TimeLockCredential {
         env: Env,
         credential_ids: Vec<u64>,
         caller: Address,
-    ) -> Result<Vec<Result<u64, String>>, String> {
+    ) -> Vec<u64> {
         caller.require_auth();
 
-        let mut results: Vec<Result<u64, String>> = Vec::new(&env);
+        let mut results: Vec<u64> = Vec::new(&env);
         let mut released_count = 0u64;
 
         for i in 0..credential_ids.len() {
             let credential_id = credential_ids.get(i).unwrap();
             
-            match Self::release_credential_internal(&env, credential_id, caller.clone()) {
-                Ok(_) => {
-                    results.push_back(Ok(credential_id));
-                    released_count += 1;
-                }
-                Err(e) => {
-                    results.push_back(Err(e));
-                }
+            if Self::release_credential_internal(&env, credential_id, caller.clone()) {
+                results.push_back(credential_id);
+                released_count += 1;
             }
         }
 
         // Log batch operation
         Self::log_audit(
             &env,
-            "BATCH_RELEASE".to_string(),
+            String::from_str(&env, "BATCH_RELEASE"),
             0,
             caller,
-            format!("Batch release: {} successful out of {}", released_count, credential_ids.len()),
-        )?;
+            String::from_str(&env, "Batch release completed"),
+        );
 
-        Ok(results)
+        results
     }
 
     /// Internal release without auth check (for batch operations)
@@ -237,38 +229,36 @@ impl TimeLockCredential {
         env: &Env,
         credential_id: u64,
         caller: Address,
-    ) -> Result<(), String> {
-        let mut credential: TimeLockedCredential = env.storage().persistent()
+    ) -> bool {
+        let credential: TimeLockedCredential = env.storage().persistent()
             .get(&StorageKey::Credential(credential_id))
-            .ok_or_else(|| "Credential not found".to_string())?;
+            .unwrap_or_else(|| panic!("Credential not found"));
 
-        if credential.is_released {
-            return Err("Already released".to_string());
-        }
-
-        if credential.is_revoked {
-            return Err("Revoked".to_string());
+        if credential.is_released || credential.is_revoked {
+            return false;
         }
 
         let current_time = env.ledger().timestamp();
         if current_time < credential.release_time {
-            return Err("Time lock active".to_string());
+            return false;
         }
 
         if caller != credential.recipient && caller != credential.issuer {
-            return Err("Unauthorized".to_string());
+            return false;
         }
 
-        credential.is_released = true;
-        env.storage().persistent().set(&StorageKey::Credential(credential_id), &credential);
+        // Can't modify due to borrowing, store updated version
+        let mut updated = credential;
+        updated.is_released = true;
+        env.storage().persistent().set(&StorageKey::Credential(credential_id), &updated);
 
         env.events().publish((
-            "credential_released",
+            Symbol::from_str(&env, "credential_released"),
             credential_id,
-            credential.recipient,
-        ),);
+            updated.recipient,
+        ));
 
-        Ok(())
+        true
     }
 
     /// Emergency override - revoke a credential within 5 minutes of request
@@ -277,24 +267,24 @@ impl TimeLockCredential {
         credential_id: u64,
         admin: Address,
         reason: String,
-    ) -> Result<(), String> {
+    ) {
         admin.require_auth();
 
         // Verify admin privileges
         let emergency_admin: Address = env.storage().persistent()
             .get(&StorageKey::EmergencyAdmin)
-            .ok_or_else(|| "No emergency admin set".to_string())?;
+            .unwrap_or_else(|| panic!("No emergency admin set"));
 
         if admin != emergency_admin {
-            return Err("Not authorized".to_string());
+            panic!("Not authorized");
         }
 
         let mut credential: TimeLockedCredential = env.storage().persistent()
             .get(&StorageKey::Credential(credential_id))
-            .ok_or_else(|| "Credential not found".to_string())?;
+            .unwrap_or_else(|| panic!("Credential not found"));
 
         if credential.is_revoked {
-            return Err("Already revoked".to_string());
+            panic!("Already revoked");
         }
 
         credential.is_revoked = true;
@@ -304,21 +294,19 @@ impl TimeLockCredential {
         // Log audit entry
         Self::log_audit(
             &env,
-            "EMERGENCY_REVOKE".to_string(),
+            String::from_str(&env, "EMERGENCY_REVOKE"),
             credential_id,
-            admin,
-            format!("Emergency revoke: {}", reason),
-        )?;
+            admin.clone(),
+            String::from_str(&env, "Emergency revoke"),
+        );
 
         // Emit event
         env.events().publish((
-            "credential_emergency_revoked",
+            Symbol::from_str(&env, "credential_emergency_revoked"),
             credential_id,
             admin,
             reason,
-        ),);
-
-        Ok(())
+        ));
     }
 
     /// Create a release schedule for multiple credentials
@@ -327,11 +315,11 @@ impl TimeLockCredential {
         creator: Address,
         credential_ids: Vec<u64>,
         release_times: Vec<u64>,
-    ) -> Result<u64, String> {
+    ) -> u64 {
         creator.require_auth();
 
         if credential_ids.len() != release_times.len() {
-            return Err("Credential and release time counts must match".to_string());
+            panic!("Credential and release time counts must match");
         }
 
         let schedule_id: u64 = env.storage().persistent()
@@ -357,40 +345,40 @@ impl TimeLockCredential {
         // Log audit entry
         Self::log_audit(
             &env,
-            "CREATE_SCHEDULE".to_string(),
+            String::from_str(&env, "CREATE_SCHEDULE"),
             schedule_id,
             creator,
-            format!("Created schedule with {} credentials", credential_ids.len()),
-        )?;
+            String::from_str(&env, "Created schedule"),
+        );
 
-        Ok(schedule_id)
+        schedule_id
     }
 
     /// Get credential details
     pub fn get_credential(
         env: Env,
         credential_id: u64,
-    ) -> Result<TimeLockedCredential, String> {
+    ) -> TimeLockedCredential {
         env.storage().persistent()
             .get(&StorageKey::Credential(credential_id))
-            .ok_or_else(|| "Credential not found".to_string())
+            .unwrap_or_else(|| panic!("Credential not found"))
     }
 
     /// Get credentials by recipient
     pub fn get_credentials_by_recipient(
         env: Env,
         recipient: Address,
-    ) -> Result<Vec<TimeLockedCredential>, String> {
+    ) -> Vec<TimeLockedCredential> {
         let count: u64 = env.storage().persistent()
             .get(&StorageKey::CredentialByRecipient(recipient.clone(), u64::MAX))
             .unwrap_or(0u64);
 
         let mut credentials: Vec<TimeLockedCredential> = Vec::new(&env);
         for i in 0..count {
-            if let Ok(cred_id) = env.storage().persistent()
+            if let Some(cred_id) = env.storage().persistent()
                 .get::<_, u64>(&StorageKey::CredentialByRecipient(recipient.clone(), i))
             {
-                if let Ok(credential) = env.storage().persistent()
+                if let Some(credential) = env.storage().persistent()
                     .get::<_, TimeLockedCredential>(&StorageKey::Credential(cred_id))
                 {
                     credentials.push_back(credential);
@@ -398,24 +386,24 @@ impl TimeLockCredential {
             }
         }
 
-        Ok(credentials)
+        credentials
     }
 
     /// Get credentials by issuer
     pub fn get_credentials_by_issuer(
         env: Env,
         issuer: Address,
-    ) -> Result<Vec<TimeLockedCredential>, String> {
+    ) -> Vec<TimeLockedCredential> {
         let count: u64 = env.storage().persistent()
             .get(&StorageKey::CredentialByIssuer(issuer.clone(), u64::MAX))
             .unwrap_or(0u64);
 
         let mut credentials: Vec<TimeLockedCredential> = Vec::new(&env);
         for i in 0..count {
-            if let Ok(cred_id) = env.storage().persistent()
+            if let Some(cred_id) = env.storage().persistent()
                 .get::<_, u64>(&StorageKey::CredentialByIssuer(issuer.clone(), i))
             {
-                if let Ok(credential) = env.storage().persistent()
+                if let Some(credential) = env.storage().persistent()
                     .get::<_, TimeLockedCredential>(&StorageKey::Credential(cred_id))
                 {
                     credentials.push_back(credential);
@@ -423,17 +411,17 @@ impl TimeLockCredential {
             }
         }
 
-        Ok(credentials)
+        credentials
     }
 
     /// Get release schedule
     pub fn get_release_schedule(
         env: Env,
         schedule_id: u64,
-    ) -> Result<ReleaseSchedule, String> {
+    ) -> ReleaseSchedule {
         env.storage().persistent()
             .get(&StorageKey::ReleaseSchedule(schedule_id))
-            .ok_or_else(|| "Schedule not found".to_string())
+            .unwrap_or_else(|| panic!("Schedule not found"))
     }
 
     /// Get audit log entries
@@ -441,12 +429,12 @@ impl TimeLockCredential {
         env: Env,
         from_id: u64,
         limit: u32,
-    ) -> Result<Vec<AuditEntry>, String> {
+    ) -> Vec<AuditEntry> {
         let mut entries: Vec<AuditEntry> = Vec::new(&env);
         let mut current_id = from_id;
 
         for _ in 0..limit {
-            if let Ok(entry) = env.storage().persistent()
+            if let Some(entry) = env.storage().persistent()
                 .get::<_, AuditEntry>(&StorageKey::AuditLog(current_id))
             {
                 entries.push_back(entry);
@@ -456,7 +444,7 @@ impl TimeLockCredential {
             }
         }
 
-        Ok(entries)
+        entries
     }
 
     /// Check if credentials are ready for release (notification system helper)
@@ -464,8 +452,8 @@ impl TimeLockCredential {
         env: Env,
         recipient: Address,
         time_window: u64, // seconds
-    ) -> Result<Vec<TimeLockedCredential>, String> {
-        let credentials = Self::get_credentials_by_recipient(env.clone(), recipient.clone())?;
+    ) -> Vec<TimeLockedCredential> {
+        let credentials = Self::get_credentials_by_recipient(env.clone(), recipient.clone());
         let current_time = env.ledger().timestamp();
         let mut upcoming: Vec<TimeLockedCredential> = Vec::new(&env);
 
@@ -479,7 +467,7 @@ impl TimeLockCredential {
             }
         }
 
-        Ok(upcoming)
+        upcoming
     }
 
     /// Log audit entry (internal helper)
@@ -489,7 +477,7 @@ impl TimeLockCredential {
         credential_id: u64,
         actor: Address,
         details: String,
-    ) -> Result<(), String> {
+    ) {
         let audit_id: u64 = env.storage().persistent()
             .get(&StorageKey::NextAuditId)
             .unwrap_or(0u64);
@@ -507,18 +495,14 @@ impl TimeLockCredential {
         env.storage().persistent().set(&StorageKey::NextAuditId, &(audit_id + 1));
 
         env.events().publish((
-            "audit_log",
+            Symbol::from_str(env, "audit_log"),
             audit_id,
-            operation,
-            actor,
-        ),);
-
-        Ok(())
+        ));
     }
 
-    /// Get statistics
+    /// Get statistics  
     pub fn get_stats(env: Env) -> Map<String, u64> {
-        let mut stats: Map<String, u64> = Map::new(env);
+        let mut stats: Map<String, u64> = Map::new(&env);
         
         let total_credentials: u64 = env.storage().persistent()
             .get(&StorageKey::TotalCredentials)
@@ -527,8 +511,8 @@ impl TimeLockCredential {
             .get(&StorageKey::TotalSchedules)
             .unwrap_or(0u64);
         
-        stats.set("total_credentials".into_val(&env), total_credentials);
-        stats.set("total_schedules".into_val(&env), total_schedules);
+        stats.set(String::from_str(&env, "total_credentials"), total_credentials);
+        stats.set(String::from_str(&env, "total_schedules"), total_schedules);
         
         stats
     }

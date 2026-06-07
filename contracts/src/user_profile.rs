@@ -1,7 +1,7 @@
 #![no_std]
 use crate::utils::storage::{PackedTimestamps, PackedUserFlags, StorageUtils};
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec, U256,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
 
 /// Optimized user profile with packed storage
@@ -10,9 +10,9 @@ use soroban_sdk::{
 pub struct UserProfile {
     pub owner: Address,
     pub username: String,
-    pub email_hash: String,  // Hash of email string
-    pub bio_hash: String,    // Hash of bio string
-    pub avatar_hash: String, // Hash of avatar URL
+    pub email_hash: u64,  // Hash of email string
+    pub bio_hash: u64,    // Hash of bio string
+    pub avatar_hash: u64, // Hash of avatar URL
     pub timestamps: PackedTimestamps,
     pub achievement_count: u32,
     pub credential_count: u32,
@@ -22,7 +22,7 @@ pub struct UserProfile {
 
 /// Privacy levels packed into flags
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum PrivacyLevel {
     Public = 0,
     Private = 1,
@@ -70,13 +70,75 @@ pub struct Achievement {
     pub title: String,
     pub description: String,
     pub timestamp: u64,     // Packed earned_at and verification status
-    pub badge_hash: String, // Hash of badge URL
+    pub badge_hash: u64, // Hash of badge URL
 }
 
 #[contract]
 pub struct UserProfileContract;
 
-#[contractimpl]
+/// Add a credential to user's profile with optimized storage
+pub fn add_credential(env: &Env, user: Address, credential_id: u64) {
+    let mut profile = env
+        .storage()
+        .instance()
+        .get::<_, UserProfile>(&ProfileKey::User(user.clone()))
+        .unwrap_or_else(|| {
+            // Create minimal profile if missing (fallback)
+            let now = env.ledger().timestamp();
+            UserProfile {
+                owner: user.clone(),
+                username: String::from_str(env, "unknown"),
+                email_hash: generate_string_hash(&String::from_str(env, "")),
+                bio_hash: generate_string_hash(&String::from_str(env, "")),
+                avatar_hash: generate_string_hash(&String::from_str(env, "")),
+                timestamps: PackedTimestamps::new(now, now),
+                achievement_count: 0,
+                credential_count: 0,
+                reputation: 0,
+                flags: PackedUserFlags::new(PrivacyLevel::Public.to_u8(), false, true),
+            }
+        });
+
+    // Update credential count
+    profile.credential_count += 1;
+    profile.timestamps =
+        PackedTimestamps::new(profile.timestamps.created_at(), env.ledger().timestamp());
+    env.storage()
+        .instance()
+        .set(&ProfileKey::User(user.clone()), &profile);
+
+    // Also maintain separate user credentials list for fast lookup
+    let mut user_creds: Vec<u64> = env
+        .storage()
+        .instance()
+        .get(&ProfileKey::UserCredentials(user.clone()))
+        .unwrap_or_else(|| Vec::new(env));
+    if !user_creds.contains(&credential_id) {
+        user_creds.push_back(credential_id);
+        env.storage()
+            .instance()
+            .set(&ProfileKey::UserCredentials(user), &user_creds);
+    }
+}
+
+/// Get all credential IDs for a user (fast path)
+pub fn get_user_credential_ids(env: &Env, user: Address) -> Vec<u64> {
+    env.storage()
+        .instance()
+        .get(&ProfileKey::UserCredentials(user))
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+/// Generate hash for string data
+fn generate_string_hash(string: &String) -> u64 {
+    let mut hash: u64 = 0;
+    let bytes: soroban_sdk::Bytes = string.clone().into();
+    for byte in bytes.iter() {
+        hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
+    }
+    hash
+}
+
 impl UserProfileContract {
     /// Initialize the contract
     pub fn initialize(_env: Env) {
@@ -127,21 +189,21 @@ impl UserProfileContract {
 
             // Store optional data separately
             if let Some(email) = email {
-                let email_hash = Self::generate_string_hash(&email);
+                let email_hash = generate_string_hash(&email);
                 existing_profile.email_hash = email_hash;
                 env.storage()
                     .instance()
                     .set(&ProfileKey::UserEmail(owner.clone()), &email);
             }
             if let Some(bio) = bio {
-                let bio_hash = Self::generate_string_hash(&bio);
+                let bio_hash = generate_string_hash(&bio);
                 existing_profile.bio_hash = bio_hash;
                 env.storage()
                     .instance()
                     .set(&ProfileKey::UserBio(owner.clone()), &bio);
             }
             if let Some(avatar) = avatar_url {
-                let avatar_hash = Self::generate_string_hash(&avatar);
+                let avatar_hash = generate_string_hash(&avatar);
                 existing_profile.avatar_hash = avatar_hash;
                 env.storage()
                     .instance()
@@ -152,10 +214,10 @@ impl UserProfileContract {
         } else {
             // Create new profile
             let email_hash =
-                Self::generate_string_hash(&email.unwrap_or_else(|| String::from_str(&env, "")));
+                generate_string_hash(&email.unwrap_or_else(|| String::from_str(&env, "")));
             let bio_hash =
-                Self::generate_string_hash(&bio.unwrap_or_else(|| String::from_str(&env, "")));
-            let avatar_hash = Self::generate_string_hash(
+                generate_string_hash(&bio.unwrap_or_else(|| String::from_str(&env, "")));
+            let avatar_hash = generate_string_hash(
                 &avatar_url.unwrap_or_else(|| String::from_str(&env, "")),
             );
 
@@ -244,7 +306,7 @@ impl UserProfileContract {
         // Pack timestamp and verification status
         let packed_timestamp = timestamp << 1; // Reserve bit 0 for verification status
         let badge_hash =
-            Self::generate_string_hash(&badge_url.unwrap_or_else(|| String::from_str(&env, "")));
+            generate_string_hash(&badge_url.unwrap_or_else(|| String::from_str(&env, "")));
 
         // Create achievement
         let achievement = Achievement {
@@ -449,65 +511,4 @@ impl UserProfileContract {
         }
     }
 
-    /// Add a credential to user's profile with optimized storage
-    pub fn add_credential(env: &Env, user: Address, credential_id: u64) {
-        let mut profile = env
-            .storage()
-            .instance()
-            .get::<_, UserProfile>(&ProfileKey::User(user.clone()))
-            .unwrap_or_else(|| {
-                // Create minimal profile if missing (fallback)
-                let now = env.ledger().timestamp();
-                UserProfile {
-                    owner: user.clone(),
-                    username: String::from_str(env, "unknown"),
-                    email_hash: Self::generate_string_hash(&String::from_str(env, "")),
-                    bio_hash: Self::generate_string_hash(&String::from_str(env, "")),
-                    avatar_hash: Self::generate_string_hash(&String::from_str(env, "")),
-                    timestamps: PackedTimestamps::new(now, now),
-                    achievement_count: 0,
-                    credential_count: 0,
-                    reputation: 0,
-                    flags: PackedUserFlags::new(PrivacyLevel::Public.to_u8(), false, true),
-                }
-            });
-
-        // Update credential count
-        profile.credential_count += 1;
-        profile.timestamps =
-            PackedTimestamps::new(profile.timestamps.created_at(), env.ledger().timestamp());
-        env.storage()
-            .instance()
-            .set(&ProfileKey::User(user.clone()), &profile);
-
-        // Also maintain separate user credentials list for fast lookup
-        let mut user_creds: Vec<u64> = env
-            .storage()
-            .instance()
-            .get(&ProfileKey::UserCredentials(user.clone()))
-            .unwrap_or_else(|| Vec::new(env));
-        if !user_creds.contains(&credential_id) {
-            user_creds.push_back(credential_id);
-            env.storage()
-                .instance()
-                .set(&ProfileKey::UserCredentials(user), &user_creds);
-        }
-    }
-
-    /// Get all credential IDs for a user (fast path)
-    pub fn get_user_credential_ids(env: &Env, user: Address) -> Vec<u64> {
-        env.storage()
-            .instance()
-            .get(&ProfileKey::UserCredentials(user))
-            .unwrap_or_else(|| Vec::new(env))
-    }
-
-    /// Generate hash for string data
-    fn generate_string_hash(string: &String) -> String {
-        let mut hash = 0u64;
-        for byte in string.clone().into_bytes() {
-            hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
-        }
-        format!("{:x}", hash)
-    }
 }

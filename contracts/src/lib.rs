@@ -1,5 +1,49 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, String, Vec, U256};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env, String, Symbol, Vec};
+
+/// Helper: convert u64 to Soroban String without format! macro
+pub fn u64_to_string(env: &Env, num: u64, prefix: &str) -> String {
+    let prefix_bytes = prefix.as_bytes();
+    let mut buf = [0u8; 64];
+    let mut pos = 0;
+    for &b in prefix_bytes {
+        buf[pos] = b;
+        pos += 1;
+    }
+    if num == 0 {
+        buf[pos] = b'0';
+        pos += 1;
+    } else {
+        let start = pos;
+        let mut n = num;
+        while n > 0 {
+            buf[pos] = b'0' + (n % 10) as u8;
+            n /= 10;
+            pos += 1;
+        }
+        let mut i = start;
+        let mut j = pos - 1;
+        while i < j {
+            let tmp = buf[i];
+            buf[i] = buf[j];
+            buf[j] = tmp;
+            i += 1;
+            j -= 1;
+        }
+    }
+    let s = core::str::from_utf8(&buf[..pos]).unwrap_or("0");
+    String::from_str(env, s)
+}
+
+/// Helper: concatenate two Soroban Strings
+pub fn str_cat(env: &Env, a: &String, b: &String) -> String {
+    let a_bytes: Bytes = a.clone().into();
+    let b_bytes: Bytes = b.clone().into();
+    let mut combined = Bytes::new(env);
+    combined.append(&a_bytes);
+    combined.append(&b_bytes);
+    String::from_bytes(env, &combined)
+}
 
 pub mod credentials;
 #[cfg(test)]
@@ -33,7 +77,6 @@ mod user_profile_test;
 mod analyticsStorage_test;
 #[cfg(test)]
 mod consciousness_test;
-pub mod eventLogger;
 pub mod courseMetadata;
 pub mod syncCoordination;
 #[cfg(test)]
@@ -55,7 +98,7 @@ pub struct UserProfile {
     pub email: Option<String>,
     pub bio: Option<String>,
     pub avatar_url: Option<String>,
-    pub timestamps: U256, // Packed created_at and updated_at
+    pub timestamps: u128, // Packed created_at and updated_at
     pub achievement_count: u32,
     pub credential_count: u32,
     pub reputation: u64,
@@ -64,7 +107,7 @@ pub struct UserProfile {
 
 /// Privacy levels packed into flags
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum PrivacyLevel {
     Public = 0,
     Private = 1,
@@ -124,6 +167,7 @@ pub enum DataKey {
     Admin,
     Credential(u64),
     CredentialCount,
+    Course(u64),
     CourseCount,
     AchievementCount,
     UserAchievements(Address),
@@ -146,7 +190,7 @@ pub struct Credential {
 /// Optimized course with packed status
 #[contracttype]
 pub struct Course {
-    pub id: String,
+    pub id: u64,
     pub instructor: Address,
     pub title: String,
     pub description: String,
@@ -258,7 +302,7 @@ impl AetherMintContract {
         title: String,
         description: String,
         price: u64,
-    ) -> String {
+    ) -> u64 {
         let admin: Address = env.storage().instance()
             .get(&DataKey::Admin)
             .unwrap_or_else(|| panic!("Admin not found"));
@@ -271,13 +315,13 @@ impl AetherMintContract {
             .get(&DataKey::CourseCount)
             .unwrap_or(0);
         
-        let course_id = format!("course_{}", course_count + 1);
+        let course_id = course_count + 1;
         
         // Pack flags - bit 0 = active status
         let flags = 1u8; // Active = true
 
         let course = Course {
-            id: course_id.clone(),
+            id: course_id,
             instructor: instructor.clone(),
             title,
             description,
@@ -285,8 +329,8 @@ impl AetherMintContract {
             flags,
         };
 
-        env.storage().instance().set(&DataKey::Course(course_id.clone()), &course);
-        env.storage().instance().set(&DataKey::CourseCount, &(course_count + 1));
+        env.storage().instance().set(&DataKey::Course(course_id), &course);
+        env.storage().instance().set(&DataKey::CourseCount, &course_id);
 
         course_id
     }

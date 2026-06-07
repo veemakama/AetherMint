@@ -18,7 +18,7 @@ pub struct Credential {
     pub issuer: Address,
     pub recipient: Address,
     pub title: String,
-    pub description_hash: String, // Hash of description string
+    pub description_hash: u64, // Hash of description string (u64 to avoid format! in no_std)
     pub course_id: String,
     pub timestamp: u64, // Packed completion_date and revocation status
     pub ipfs_hash: String,
@@ -36,7 +36,9 @@ pub fn issue_credential(
 ) -> u64 {
     issuer.require_auth();
 
-    let admin: Address = env.storage().instance().get(&Symbol::new(env, "admin"));
+    let admin: Address = env.storage().instance()
+        .get(&Symbol::new(env, "admin"))
+        .unwrap_or_else(|| panic!("Admin not set"));
     if issuer != admin {
         panic!("Unauthorized issuer");
     }
@@ -49,7 +51,7 @@ pub fn issue_credential(
     let packed_timestamp = timestamp << 1; // Reserve bit 0 for revocation status
 
     // Generate hash for description to save storage space
-    let description_hash = Self::generate_string_hash(&description);
+    let description_hash = generate_string_hash(&description);
 
     let credential = Credential {
         id: credential_id,
@@ -74,7 +76,7 @@ pub fn issue_credential(
     );
 
     // Integrate with user profile
-    user_profile::add_credential(env, recipient.clone(), credential_id);
+    crate::user_profile::add_credential(env, recipient.clone(), credential_id);
 
     // Update credential count
     env.storage()
@@ -105,7 +107,9 @@ pub fn verify_credential(env: &Env, credential_id: u64) -> bool {
 pub fn revoke_credential(env: &Env, credential_id: u64, revoker: Address) {
     revoker.require_auth();
 
-    let admin: Address = env.storage().instance().get(&Symbol::new(env, "admin"));
+    let admin: Address = env.storage().instance()
+        .get(&Symbol::new(env, "admin"))
+        .unwrap_or_else(|| panic!("Admin not set"));
     if revoker != admin {
         panic!("Only admin can revoke");
     }
@@ -160,7 +164,7 @@ pub fn get_credential_revocation_time(env: &Env, credential_id: u64) -> Option<u
         .get(&CredentialKey::CredentialRevocations(credential_id))
 }
 
-/// Get credential count with optimized storage
+    // Get credential count with optimized storage
 pub fn get_credential_count(env: &Env) -> u64 {
     env.storage()
         .instance()
@@ -168,11 +172,12 @@ pub fn get_credential_count(env: &Env) -> u64 {
         .unwrap_or(0)
 }
 
-/// Generate hash for string data
-fn generate_string_hash(string: &String) -> String {
-    let mut hash = 0u64;
-    for byte in string.clone().into_bytes() {
+/// Generate hash for string data (returns u64 instead of hex string to avoid format!)
+fn generate_string_hash(string: &String) -> u64 {
+    let mut hash: u64 = 0;
+    let bytes: soroban_sdk::Bytes = string.clone().into();
+    for byte in bytes.iter() {
         hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
     }
-    format!("{:x}", hash)
+    hash
 }

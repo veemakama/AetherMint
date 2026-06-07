@@ -36,6 +36,8 @@ class PerformanceMonitor {
   };
 
   constructor() {
+    // Guard: skip browser-only initialization during SSR
+    if (typeof window === 'undefined') return;
     this.initializeWebVitals();
     this.initializePerformanceObservers();
     this.trackResourceTiming();
@@ -286,4 +288,16 @@ class PerformanceMonitor {
   }
 }
 
-export const performanceMonitor = new PerformanceMonitor();
+// Guard against SSR: defer browser-only initialization
+let _instance: PerformanceMonitor | null = null;
+
+export function getPerformanceMonitor(): PerformanceMonitor {
+  if (!_instance) {
+    _instance = new PerformanceMonitor();
+  }
+  return _instance;
+}
+
+// Export a singleton that is safe for SSR.
+// The constructor has a guard for browser-only initialization.
+export const performanceMonitor: PerformanceMonitor = new PerformanceMonitor();
