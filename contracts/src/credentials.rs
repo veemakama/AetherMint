@@ -175,9 +175,10 @@ pub fn get_credential_count(env: &Env) -> u64 {
 /// Generate hash for string data (returns u64 instead of hex string to avoid format!)
 fn generate_string_hash(string: &String) -> u64 {
     let mut hash: u64 = 0;
-    let bytes: soroban_sdk::Bytes = string.clone().into();
-    for byte in bytes.iter() {
-        hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
+    let mut buf = [0u8; 256];
+    let written = string.copy_into_slice(&mut buf);
+    for i in 0..written {
+        hash = hash.wrapping_mul(31).wrapping_add(buf[i as usize] as u64);
     }
     hash
 }

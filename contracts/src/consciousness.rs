@@ -49,7 +49,7 @@ impl ConsciousnessContract {
     ) -> Bytes {
         // Generate unique consciousness ID using sha256
         let owner_str: soroban_sdk::String = owner.to_string();
-        let owner_bytes: soroban_sdk::Bytes = owner_str.into();
+        let owner_bytes: soroban_sdk::Bytes = crate::string_to_bytes(&env, &owner_str);
         let consciousness_id = env.crypto().sha256(
             &[&owner_bytes, &neural_data].concat()
         );
@@ -286,7 +286,7 @@ impl ConsciousnessContract {
             // Verify payment (simplified)
             let payment_hash = env.crypto().sha256(&payment_proof);
             let buyer_str: soroban_sdk::String = buyer.to_string();
-            let buyer_bytes: soroban_sdk::Bytes = buyer_str.into();
+            let buyer_bytes: soroban_sdk::Bytes = crate::string_to_bytes(&env, &buyer_str);
             let expected_data = [&Bytes::from_slice(&env, b"payment"), &buyer_bytes].concat();
             let expected_hash = env.crypto().sha256(&expected_data);
 

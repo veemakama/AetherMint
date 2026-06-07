@@ -132,8 +132,9 @@ pub fn get_user_credential_ids(env: &Env, user: Address) -> Vec<u64> {
 /// Generate hash for string data
 fn generate_string_hash(string: &String) -> u64 {
     let mut hash: u64 = 0;
-    let bytes: soroban_sdk::Bytes = string.clone().into();
-    for byte in bytes.iter() {
+    let mut buf = [0u8; 256];
+    let written = string.copy_into_slice(&mut buf);
+    for i in 0..written {
         hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
     }
     hash

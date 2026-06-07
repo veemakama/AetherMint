@@ -400,9 +400,10 @@ impl CourseMetadataContract {
         let mut hash: u64 = 0;
         for i in 0..vec.len() {
             let item = vec.get(i).unwrap();
-            let bytes: soroban_sdk::Bytes = item.clone().into();
-            for byte in bytes.iter() {
-                hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
+            let mut buf = [0u8; 256];
+            let written = item.copy_into_slice(&mut buf);
+            for j in 0..written {
+                hash = hash.wrapping_mul(31).wrapping_add(buf[j as usize] as u64);
             }
         }
         u64_to_hex_string(hash)
@@ -411,9 +412,10 @@ impl CourseMetadataContract {
     /// Generate hash for string data
     fn generate_string_hash(string: &String) -> String {
         let mut hash: u64 = 0;
-        let bytes: soroban_sdk::Bytes = string.clone().into();
-        for byte in bytes.iter() {
-            hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
+        let mut buf = [0u8; 256];
+        let written = string.copy_into_slice(&mut buf);
+        for i in 0..written {
+            hash = hash.wrapping_mul(31).wrapping_add(buf[i as usize] as u64);
         }
         u64_to_hex_string(hash)
     }
@@ -609,13 +611,15 @@ fn u64_to_completion_id(env: &Env, num: u64) -> soroban_sdk::String {
 /// Simple hash concatenation without format!
 fn simple_hash_concat(title: &soroban_sdk::String, description: &soroban_sdk::String, instructor: &Address, price: u64, timestamp: u64) -> soroban_sdk::String {
     let mut combined: u64 = 0;
-    let t_bytes: soroban_sdk::Bytes = title.clone().into();
-    for byte in t_bytes.iter() {
-        combined = combined.wrapping_mul(31).wrapping_add(byte as u64);
+    let mut t_buf = [0u8; 256];
+    let t_written = title.copy_into_slice(&mut t_buf);
+    for i in 0..t_written {
+        combined = combined.wrapping_mul(31).wrapping_add(t_buf[i as usize] as u64);
     }
-    let d_bytes: soroban_sdk::Bytes = description.clone().into();
-    for byte in d_bytes.iter() {
-        combined = combined.wrapping_mul(31).wrapping_add(byte as u64);
+    let mut d_buf = [0u8; 512];
+    let d_written = description.copy_into_slice(&mut d_buf);
+    for i in 0..d_written {
+        combined = combined.wrapping_mul(31).wrapping_add(d_buf[i as usize] as u64);
     }
     combined = combined.wrapping_mul(31).wrapping_add(price);
     combined = combined.wrapping_mul(31).wrapping_add(timestamp);

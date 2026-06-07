@@ -35,10 +35,21 @@ pub fn u64_to_string(env: &Env, num: u64, prefix: &str) -> String {
     String::from_str(env, s)
 }
 
+/// Helper: convert Soroban String to Bytes (since From<String> is not implemented for Bytes in v20)
+pub fn string_to_bytes(env: &Env, s: &String) -> Bytes {
+    let len = s.len() as usize;
+    if len == 0 {
+        return Bytes::new(env);
+    }
+    let mut buf = [0u8; 512];
+    let written = s.copy_into_slice(&mut buf[..len.min(512)]);
+    Bytes::from_slice(env, &buf[..written as usize])
+}
+
 /// Helper: concatenate two Soroban Strings
 pub fn str_cat(env: &Env, a: &String, b: &String) -> String {
-    let a_bytes: Bytes = a.clone().into();
-    let b_bytes: Bytes = b.clone().into();
+    let a_bytes = string_to_bytes(env, a);
+    let b_bytes = string_to_bytes(env, b);
     let mut combined = Bytes::new(env);
     combined.append(&a_bytes);
     combined.append(&b_bytes);

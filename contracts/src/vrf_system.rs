@@ -214,7 +214,7 @@ impl VRFSystem {
 
         // Aggregate entropy with existing contributions
         let current_seed = request.seed.clone();
-        let new_seed = Self::aggregate_entropy(&env, current_seed.as_slice(), entropy.as_slice());
+        let new_seed = Self::aggregate_entropy(&env, current_seed.as_ref(), entropy.as_ref());
         request.seed = new_seed;
 
         env.storage().persistent().set(&StorageKey::VRFRequest(request_id), &request);
@@ -315,7 +315,7 @@ impl VRFSystem {
 
         // Verify the reveal matches the commitment
         let computed_hash = Self::hash_reveal(&env, &revealed_value);
-        if computed_hash.as_slice() != commitment.hash.as_slice() {
+        if computed_hash.as_ref() != commitment.hash.as_ref() {
             panic!("Reveal does not match commitment");
         }
 
@@ -346,7 +346,7 @@ impl VRFSystem {
             .unwrap_or_else(|| panic!("Beacon not found"));
 
         // Combine seed with beacon entropy
-        let combined = Self::combine_seeds(&env, seed.as_slice(), beacon.entropy_hash.as_slice());
+        let combined = Self::combine_seeds(&env, seed.as_ref(), beacon.entropy_hash.as_ref());
         
         // Generate random value in range
         let random_value = Self::random_in_range(&combined, min, max);
@@ -422,7 +422,7 @@ impl VRFSystem {
             .unwrap_or_else(|| panic!("Request not found"));
 
         if let Some(stored_proof) = request.proof {
-            stored_proof.as_slice() == proof.as_slice()
+            stored_proof.as_ref() == proof.as_ref()
         } else {
             false
         }
@@ -490,7 +490,7 @@ impl VRFSystem {
     }
 
     fn hash_reveal(env: &Env, value: &String) -> BytesN<32> {
-        let bytes: soroban_sdk::Bytes = value.clone().into();
+        let bytes = crate::string_to_bytes(env, value);
         env.crypto().sha256(&bytes)
     }
 }
