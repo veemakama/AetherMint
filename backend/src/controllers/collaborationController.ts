@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import collaborationService from '../services/collaborationService';
+const collaborationService = require('../services/collaborationService').default || require('../services/collaborationService');
 
 /**
  * Collaboration controller

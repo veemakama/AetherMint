@@ -1,6 +1,6 @@
 use soroban_sdk::{
     contract, contractimpl, contracttype, Address, Env, String, Vec,
-    Map, BytesN,
+    Map, BytesN, Symbol,
 };
 
 /// Time-locked credential release system for Stellar blockchain
@@ -134,7 +134,7 @@ impl TimeLockCredential {
             &credential_id
         );
         env.storage().persistent().set(
-            &StorageKey::CredentialByIssuer(issuer, u64::MAX),
+            &StorageKey::CredentialByIssuer(issuer.clone(), u64::MAX),
             &(issuer_count + 1u64)
         );
 
@@ -184,12 +184,10 @@ impl TimeLockCredential {
         Self::log_audit(&env, String::from_str(&env, "RELEASE_CREDENTIAL"), credential_id, caller, String::from_str(&env, "Credential released"));
 
         // Emit event
-        env.events().publish((
-            Symbol::from_str(&env, "credential_released"),
-            credential_id,
-            credential.recipient,
-            credential.issuer,
-        ));
+        env.events().publish(
+            (Symbol::new(&env, "credential_released"),),
+            (credential_id, credential.recipient, credential.issuer),
+        );
     }
 
     /// Batch release multiple credentials (gas optimized)
@@ -201,14 +199,14 @@ impl TimeLockCredential {
         caller.require_auth();
 
         let mut results: Vec<u64> = Vec::new(&env);
-        let mut released_count = 0u64;
+        let mut _released_count = 0u64;
 
         for i in 0..credential_ids.len() {
             let credential_id = credential_ids.get(i).unwrap();
             
             if Self::release_credential_internal(&env, credential_id, caller.clone()) {
                 results.push_back(credential_id);
-                released_count += 1;
+                _released_count += 1;
             }
         }
 
@@ -252,11 +250,10 @@ impl TimeLockCredential {
         updated.is_released = true;
         env.storage().persistent().set(&StorageKey::Credential(credential_id), &updated);
 
-        env.events().publish((
-            Symbol::from_str(&env, "credential_released"),
-            credential_id,
-            updated.recipient,
-        ));
+        env.events().publish(
+            (Symbol::new(&env, "credential_released"),),
+            (credential_id, updated.recipient),
+        );
 
         true
     }
@@ -301,12 +298,10 @@ impl TimeLockCredential {
         );
 
         // Emit event
-        env.events().publish((
-            Symbol::from_str(&env, "credential_emergency_revoked"),
-            credential_id,
-            admin,
-            reason,
-        ));
+        env.events().publish(
+            (Symbol::new(&env, "credential_emergency_revoked"),),
+            (credential_id, admin, reason),
+        );
     }
 
     /// Create a release schedule for multiple credentials
@@ -494,10 +489,10 @@ impl TimeLockCredential {
         env.storage().persistent().set(&StorageKey::AuditLog(audit_id), &entry);
         env.storage().persistent().set(&StorageKey::NextAuditId, &(audit_id + 1));
 
-        env.events().publish((
-            Symbol::from_str(env, "audit_log"),
-            audit_id,
-        ));
+        env.events().publish(
+            (Symbol::new(env, "audit_log"),),
+            (audit_id,),
+        );
     }
 
     /// Get statistics  

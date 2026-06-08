@@ -34,7 +34,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { destinationChain, payload, messageType, gasLimit } = req.body;
-      const sender = req.user?.address;
+      const sender = (req.user as any)?.address;
 
       if (!sender) {
         return res.status(401).json({ 

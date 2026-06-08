@@ -1,13 +1,12 @@
-#![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec, U256,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String,
 };
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TokenomicsKey {
-    TokenBalance(Address, u8), // Address, TokenType (0: Reward, 1: Governance, 2: Utility)
-    TotalSupply(u8),
+    TokenBalance(Address, u32), // Address, TokenType (0: Reward, 1: Governance, 2: Utility)
+    TotalSupply(u32),
     StakePool(Address),
     StakePoolTotal,
     Proposal(u64),
@@ -35,7 +34,7 @@ pub struct Proposal {
     pub votes_for: u64,
     pub votes_against: u64,
     pub end_time: u64,
-    pub status: u8, // 0: Open, 1: Passed, 2: Rejected, 3: Executed
+    pub status: u32, // 0: Open, 1: Passed, 2: Rejected, 3: Executed
 }
 
 #[contract]
@@ -57,7 +56,7 @@ impl TokenomicsContract {
         // In a real system, the caller would be the Proctoring or Course contract
         // recipient.require_auth(); // No auth needed as we are the "minter" or we'd check admin
         
-        let token_type = 0; // Reward Token
+        let token_type = 0u32; // Reward Token
         let balance = Self::balance_of(env.clone(), recipient.clone(), token_type);
         env.storage()
             .persistent()
@@ -77,14 +76,14 @@ impl TokenomicsContract {
         staker.require_auth();
 
         // Burn or transfer reward tokens to the stake pool
-        let balance = Self::balance_of(env.clone(), staker.clone(), 0);
+        let balance = Self::balance_of(env.clone(), staker.clone(), 0u32);
         if balance < amount {
             panic!("Insufficient balance");
         }
 
         env.storage()
             .persistent()
-            .set(&TokenomicsKey::TokenBalance(staker.clone(), 0), &(balance - amount));
+            .set(&TokenomicsKey::TokenBalance(staker.clone(), 0u32), &(balance - amount));
 
         // Variable APY based on lock duration (simplified)
         // 1 week: 5% (500 bps), 1 month: 10% (1000 bps), 1 year: 50% (5000 bps)
@@ -130,10 +129,10 @@ impl TokenomicsContract {
         let total_return = stake.amount + reward;
         
         // Mint reward tokens and give back original stake (simplified)
-        let balance = Self::balance_of(env.clone(), staker.clone(), 0);
+        let balance = Self::balance_of(env.clone(), staker.clone(), 0u32);
         env.storage()
             .persistent()
-            .set(&TokenomicsKey::TokenBalance(staker.clone(), 0), &(balance + total_return));
+            .set(&TokenomicsKey::TokenBalance(staker.clone(), 0u32), &(balance + total_return));
 
         env.storage().persistent().remove(&TokenomicsKey::StakePool(staker.clone()));
 
@@ -150,7 +149,7 @@ impl TokenomicsContract {
     pub fn vote_on_proposal(env: Env, voter: Address, proposal_id: u64, votes_power: u64, approve: bool) {
         voter.require_auth();
 
-        let gov_balance = Self::balance_of(env.clone(), voter.clone(), 1); // Governance token
+        let gov_balance = Self::balance_of(env.clone(), voter.clone(), 1u32); // Governance token
         let cost = votes_power * votes_power; // Quadratic cost
         
         if gov_balance < cost {
@@ -160,7 +159,7 @@ impl TokenomicsContract {
         // Deduct/Burn (Simplified)
         env.storage()
             .persistent()
-            .set(&TokenomicsKey::TokenBalance(voter.clone(), 1), &(gov_balance - cost));
+            .set(&TokenomicsKey::TokenBalance(voter.clone(), 1u32), &(gov_balance - cost));
 
         let mut proposal: Proposal = env.storage().instance().get(&TokenomicsKey::Proposal(proposal_id)).unwrap_or_else(|| panic!("Proposal not found"));
 
@@ -191,7 +190,7 @@ impl TokenomicsContract {
             votes_for: 0,
             votes_against: 0,
             end_time: env.ledger().timestamp() + duration_seconds,
-            status: 0,
+            status: 0u32,
         };
 
         env.storage().instance().set(&TokenomicsKey::Proposal(id), &proposal);
@@ -200,14 +199,14 @@ impl TokenomicsContract {
         id
     }
 
-    pub fn balance_of(env: Env, user: Address, token_type: u8) -> u64 {
+    pub fn balance_of(env: Env, user: Address, token_type: u32) -> u64 {
         env.storage()
             .persistent()
             .get(&TokenomicsKey::TokenBalance(user, token_type))
             .unwrap_or(0)
     }
 
-    pub fn total_supply(env: Env, token_type: u8) -> u64 {
+    pub fn total_supply(env: Env, token_type: u32) -> u64 {
         env.storage().instance().get(&TokenomicsKey::TotalSupply(token_type)).unwrap_or(0)
     }
 }

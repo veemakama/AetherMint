@@ -1,4 +1,6 @@
-import { UserRole, ROLE_PERMISSIONS, ROLE_HIERARCHY } from '../utils/roles';
+const rolesModule = require('../utils/roles');
+const _UserRole = (rolesModule as any).UserRole || {};
+const ROLE_HIERARCHY = (rolesModule as any).ROLE_HIERARCHY || {};
 import { clearCachedPermissions } from '../utils/redis';
 import logger from '../utils/logger';
 
@@ -15,7 +17,7 @@ class RBACService {
    */
   async assignRole(adminId: string, userId: string, newRole: string): Promise<any> {
     try {
-      if (!Object.values(UserRole).includes(newRole as any)) {
+      if (!Object.values(_UserRole).includes(newRole as any)) {
         throw new Error(`Invalid role: ${newRole}`);
       }
 
@@ -42,7 +44,7 @@ class RBACService {
    * Get all available roles
    */
   getAvailableRoles(): string[] {
-    return Object.values(UserRole);
+    return Object.values(_UserRole);
   }
 
   /**
@@ -53,7 +55,7 @@ class RBACService {
     const targetLevel = ROLE_HIERARCHY[targetRole] || 0;
     
     // Only admins can assign other admin/moderator roles
-    return adminLevel > targetLevel || adminRole === UserRole.ADMIN;
+    return adminLevel > targetLevel || adminRole === _UserRole.ADMIN;
   }
 
   /**

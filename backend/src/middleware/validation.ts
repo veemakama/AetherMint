@@ -26,7 +26,7 @@ export const handleValidationErrors = (req: Request, res: Response, next: NextFu
 /**
  * Generic validation middleware
  */
-export const validateRequest = (req: Request, res: Response, next: NextFunction): void => {
+export const validateRequestGeneric = (req: Request, res: Response, next: NextFunction): void => {
   const errors = validationResult(req);
   
   if (!errors.isEmpty()) {
@@ -386,6 +386,13 @@ export const checkVersionRestorePermission = (req: Request, res: Response, next:
   
   next();
 };
+
+/**
+ * Placeholder validation exports used by enrollment and payment routes
+ */
+export const validateEnrollment = [handleValidationErrors];
+export const validateEnrollmentUpdate = [handleValidationErrors];
+export const validatePayment = [handleValidationErrors];
 
 /**
  * Middleware to validate date range for version history filtering

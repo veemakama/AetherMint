@@ -13,7 +13,7 @@ import {
 } from '../models/Enrollment';
 import { EnrollmentService } from './EnrollmentService';
 import { PaymentService } from './PaymentService';
-import { NotificationService } from '../services/notificationService';
+import { NotificationService } from '../services/NotificationService';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface StatusTransition {
@@ -445,9 +445,7 @@ export class EnrollmentStatusService {
   /**
    * Get enrollment status metrics
    */
-  async getStatusMetrics(courseId?: string): Promise<{
-    [key in EnrollmentStatus]: number;
-  }> {
+  async getStatusMetrics(courseId?: string): Promise<Record<string, number>> {
     const filter = courseId ? { courseId } : {};
     const enrollments = await this.enrollmentService.getEnrollments({
       ...filter,
@@ -455,16 +453,16 @@ export class EnrollmentStatusService {
       limit: 10000
     });
 
-    const metrics = {} as { [key in EnrollmentStatus]: number };
+    const metrics: Record<string, number> = {};
     
     // Initialize all statuses to 0
     Object.values(EnrollmentStatus).forEach(status => {
-      metrics[status] = 0;
+      metrics[status as string] = 0;
     });
 
     // Count enrollments by status
     enrollments.enrollments.forEach(enrollment => {
-      metrics[enrollment.status]++;
+      metrics[enrollment.status] = (metrics[enrollment.status] || 0) + 1;
     });
 
     return metrics;
@@ -473,11 +471,8 @@ export class EnrollmentStatusService {
   /**
    * Get enrollment status trends
    */
-  async getStatusTrends(days: number = 30): Promise<{
-    date: string;
-    [key in EnrollmentStatus]?: number;
-  }[]> {
-    const trends: { date: string; [key in EnrollmentStatus]?: number }[] = [];
+  async getStatusTrends(days: number = 30): Promise<Record<string, any>[]> {
+    const trends: Record<string, any>[] = [];
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
@@ -487,7 +482,7 @@ export class EnrollmentStatusService {
       date.setDate(date.getDate() + i);
       
       const dateStr = date.toISOString().split('T')[0];
-      trends.push({ date });
+      trends.push({ date: dateStr });
     }
 
     // In production, this would query actual transition data

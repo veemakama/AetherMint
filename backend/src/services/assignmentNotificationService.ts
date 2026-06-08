@@ -89,7 +89,7 @@ export class AssignmentNotificationService {
   async createNotification(notificationData: NotificationData): Promise<AssignmentNotification> {
     const notification: AssignmentNotification = {
       id: uuidv4(),
-      type: notificationData.type,
+      type: notificationData.type as any,
       assignmentId: notificationData.data?.assignmentId,
       recipientId: notificationData.recipientId,
       title: notificationData.title,

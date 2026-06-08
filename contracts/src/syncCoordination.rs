@@ -1,6 +1,5 @@
-#![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, Env, Map, String, Symbol, Vec,
+    contract, contractimpl, contracttype, Address, Env, String, Vec,
 };
 
 #[contracttype]
@@ -13,7 +12,7 @@ pub enum DeviceType {
 }
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SyncStatus {
     Pending,
     InProgress,
@@ -23,7 +22,7 @@ pub enum SyncStatus {
 }
 
 #[contracttype]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ConflictResolution {
     LastWriteWins,
     ManualReview,
@@ -172,7 +171,7 @@ impl SyncCoordinationContract {
             .set(&SyncCoordinationKey::DeviceCount, &(device_count + 1));
 
         // Add to user's device list
-        let mut user_devices = Self::get_user_devices(env, user_address.clone());
+        let mut user_devices = Self::get_user_devices(env.clone(), user_address.clone());
         user_devices.push_back(device_id.clone());
         env.storage().instance().set(
             &SyncCoordinationKey::UserDevices(user_address),
@@ -185,7 +184,7 @@ impl SyncCoordinationContract {
     /// Start a sync session
     pub fn start_sync_session(env: Env, user_address: Address, device_id: String) -> String {
         // Verify device exists and belongs to user
-        let device = Self::get_device(env, device_id.clone());
+        let device = Self::get_device(env.clone(), device_id.clone());
         if device.user_address != user_address {
             panic!("Device does not belong to user");
         }
@@ -243,7 +242,7 @@ impl SyncCoordinationContract {
         payload: String,
     ) -> String {
         // Verify session exists and is active
-        let session = Self::get_sync_session(env, session_id.clone());
+        let session = Self::get_sync_session(env.clone(), session_id.clone());
         if session.status != SyncStatus::InProgress {
             panic!("Session is not active");
         }
@@ -436,14 +435,14 @@ impl SyncCoordinationContract {
     }
 
     /// Get user's sync history
-    pub fn get_user_sync_history(env: Env, user_address: Address, limit: u32) -> Vec<String> {
+    pub fn get_user_sync_history(env: Env, _user_address: Address, _limit: u32) -> Vec<String> {
         // This is a simplified implementation
         // In production, you'd maintain an index by user and timestamp
         Vec::new(&env)
     }
 
     /// Get conflicts for user
-    pub fn get_user_conflicts(env: Env, user_address: Address) -> Vec<String> {
+    pub fn get_user_conflicts(env: Env, _user_address: Address) -> Vec<String> {
         // Simplified implementation
         // In production, maintain user conflict index
         Vec::new(&env)
@@ -490,11 +489,11 @@ impl SyncCoordinationContract {
 
     /// Check for conflicts with existing entries
     fn check_for_conflicts(
-        env: Env,
-        user_address: Address,
-        data_type: String,
-        data_hash: String,
-        timestamp: u64,
+        _env: Env,
+        _user_address: Address,
+        _data_type: String,
+        _data_hash: String,
+        _timestamp: u64,
     ) -> Option<String> {
         // Simplified conflict detection
         // In production, this would check against recent entries of same data type
@@ -503,7 +502,7 @@ impl SyncCoordinationContract {
     }
 
     /// Apply last-write-wins resolution
-    fn apply_last_write_wins(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
+    fn apply_last_write_wins(env: Env, _conflict: &SyncConflict, winning_entry_id: String) {
         let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
         updated_entry.sync_status = SyncStatus::Completed;
@@ -515,7 +514,7 @@ impl SyncCoordinationContract {
     }
 
     /// Apply first-write-wins resolution
-    fn apply_first_write_wins(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
+    fn apply_first_write_wins(env: Env, _conflict: &SyncConflict, winning_entry_id: String) {
         let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
         updated_entry.sync_status = SyncStatus::Completed;
@@ -527,7 +526,7 @@ impl SyncCoordinationContract {
     }
 
     /// Apply timestamp-wins resolution
-    fn apply_timestamp_wins(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
+    fn apply_timestamp_wins(env: Env, _conflict: &SyncConflict, winning_entry_id: String) {
         let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
         updated_entry.sync_status = SyncStatus::Completed;
@@ -539,7 +538,7 @@ impl SyncCoordinationContract {
     }
 
     /// Apply manual review resolution
-    fn apply_manual_review(env: Env, conflict: &SyncConflict, winning_entry_id: String) {
+    fn apply_manual_review(env: Env, _conflict: &SyncConflict, winning_entry_id: String) {
         let winning_entry = Self::get_sync_entry(env.clone(), winning_entry_id.clone());
         let mut updated_entry = winning_entry;
         updated_entry.sync_status = SyncStatus::Pending;
@@ -604,7 +603,7 @@ impl SyncCoordinationContract {
     }
 
     /// Clean up old sync data (maintenance function)
-    pub fn cleanup_old_data(env: Env, older_than: u64) -> u64 {
+    pub fn cleanup_old_data(_env: Env, _older_than: u64) -> u64 {
         // This would require iterating through all entries and removing old ones
         // Simplified implementation for demo
         0

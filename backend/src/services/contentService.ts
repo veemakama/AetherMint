@@ -66,7 +66,10 @@ export class ContentService {
         },
         version: {
           current: 1,
-          history: []
+          history: [],
+          maxVersions: 10,
+          autoVersioning: true,
+          lastVersionUpdate: new Date()
         },
         analytics: {
           views: 0,
@@ -154,9 +157,10 @@ export class ContentService {
       }
 
       // Update content
-      const updatedContent: Content = {
+      const { courseId, ...safeRequest } = request as any;
+    const updatedContent: Content = {
         ...existingContent,
-        ...request,
+        ...safeRequest,
         updatedAt: new Date()
       };
 
@@ -238,7 +242,7 @@ export class ContentService {
       // Soft delete by archiving
       await this.updateContent(contentId, {
         status: ContentStatus.ARCHIVED
-      }, deletedBy);
+      } as any, deletedBy);
 
       logger.info(`Deleted content: ${contentId}`);
     } catch (error) {
@@ -314,9 +318,8 @@ export class ContentService {
         case 'move':
           for (const contentId of operation.contentIds) {
             await this.updateContent(contentId, {
-              courseId: operation.data.courseId,
-              moduleId: operation.data.moduleId
-            }, performedBy);
+              ...operation.data
+            } as any, performedBy);
           }
           break;
         default:

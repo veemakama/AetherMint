@@ -47,12 +47,12 @@ export class QuantumResistantCrypto {
     const sharedSecret = sodium.crypto_scalarmult(privateKeyBytes, publicKeyBytes);
     
     // Add additional entropy using HKDF for quantum resistance
-    const salt = crypto.randomBytes(32);
+    const salt = crypto.randomBytes(32) as any;
     const info = Buffer.from('quantum-resistant-communication');
     
-    const derivedKey = crypto.hkdfSync(
+    const derivedKey = (crypto as any).hkdfSync(
       'sha512',
-      sharedSecret,
+      sharedSecret as any,
       salt,
       info,
       64
@@ -182,7 +182,7 @@ export class QuantumResistantCrypto {
     
     purposes.forEach(purpose => {
       const info = Buffer.from(`quantum-resistant-${purpose}`);
-      const derivedKey = crypto.hkdfSync('sha512', masterBuffer, Buffer.alloc(0), info, 32);
+      const derivedKey = (crypto as any).hkdfSync('sha512', masterBuffer, Buffer.alloc(0), info, 32);
       keys[purpose] = derivedKey.toString('hex');
     });
     

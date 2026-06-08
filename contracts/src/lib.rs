@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env, String, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, Env, String, Vec};
 
 /// Helper: convert u64 to Soroban String without format! macro
 pub fn u64_to_string(env: &Env, num: u64, prefix: &str) -> String {
@@ -35,17 +35,6 @@ pub fn u64_to_string(env: &Env, num: u64, prefix: &str) -> String {
     String::from_str(env, s)
 }
 
-/// Helper: convert Soroban String to Bytes (since From<String> is not implemented for Bytes in v20)
-pub fn string_to_bytes(env: &Env, s: &String) -> Bytes {
-    let len = s.len() as usize;
-    if len == 0 {
-        return Bytes::new(env);
-    }
-    let mut buf = [0u8; 512];
-    let written = s.copy_into_slice(&mut buf[..len.min(512)]);
-    Bytes::from_slice(env, &buf[..written as usize])
-}
-
 /// Helper: concatenate two Soroban Strings
 pub fn str_cat(env: &Env, a: &String, b: &String) -> String {
     let a_bytes = string_to_bytes(env, a);
@@ -53,7 +42,31 @@ pub fn str_cat(env: &Env, a: &String, b: &String) -> String {
     let mut combined = Bytes::new(env);
     combined.append(&a_bytes);
     combined.append(&b_bytes);
-    String::from_bytes(env, &combined)
+    // Copy Bytes content to convert to String
+    let mut buf = [0u8; 1024];
+    let total = combined.len();
+    if total == 0 {
+        return String::from_str(env, "");
+    }
+    let mut i: u32 = 0;
+    while i < total && (i as usize) < 1024 {
+        buf[i as usize] = combined.get(i).unwrap_or(0);
+        i += 1;
+    }
+    let s = core::str::from_utf8(&buf[..(total as usize).min(1024)]).unwrap_or("");
+    String::from_str(env, s)
+}
+
+/// Helper: convert Soroban String to Bytes (since From<String> is not implemented for Bytes in v20)
+pub fn string_to_bytes(env: &Env, s: &String) -> Bytes {
+    let len = s.len() as usize;
+    if len == 0 {
+        return Bytes::new(env);
+    }
+    let mut buf = [0u8; 512];
+    let buf_len = if len < 512 { len } else { 512usize };
+    s.copy_into_slice(&mut buf[..buf_len]);
+    Bytes::from_slice(env, &buf[..buf_len])
 }
 
 pub mod credentials;
@@ -76,6 +89,7 @@ mod vrf_system_test;
 pub mod progress;
 pub mod event_logger;
 pub mod user_profile;
+#[allow(non_snake_case)]
 pub mod analyticsStorage;
 pub mod consciousness;
 #[cfg(test)]
@@ -88,7 +102,9 @@ mod user_profile_test;
 mod analyticsStorage_test;
 #[cfg(test)]
 mod consciousness_test;
+#[allow(non_snake_case)]
 pub mod courseMetadata;
+#[allow(non_snake_case)]
 pub mod syncCoordination;
 #[cfg(test)]
 mod courseMetadata_test;
@@ -113,7 +129,7 @@ pub struct UserProfile {
     pub achievement_count: u32,
     pub credential_count: u32,
     pub reputation: u64,
-    pub flags: u8, // Packed privacy level, verification status, etc.
+    pub flags: u32, // Packed privacy level, verification status, etc.
 }
 
 /// Privacy levels packed into flags
@@ -206,7 +222,7 @@ pub struct Course {
     pub title: String,
     pub description: String,
     pub price: u64,
-    pub flags: u8, // Packed active status and other boolean flags
+    pub flags: u32, // Packed active status and other boolean flags
 }
 
 /// Simplified profile for backward compatibility
@@ -329,7 +345,7 @@ impl AetherMintContract {
         let course_id = course_count + 1;
         
         // Pack flags - bit 0 = active status
-        let flags = 1u8; // Active = true
+        let flags = 1u32; // Active = true
 
         let course = Course {
             id: course_id,
@@ -383,6 +399,7 @@ impl AetherMintContract {
     }
 
     /// Helper function to increment user achievement count  
+    #[allow(dead_code)]
     fn increment_user_achievement_count(env: &Env, user: Address) {
         if let Some(mut profile) = env.storage().instance().get::<_, UserProfile>(&ProfileKey::User(user.clone())) {
             profile.achievement_count += 1;
@@ -433,9 +450,9 @@ impl AetherMintContract {
     }
 
     /// Check and update credential expiration status
-    pub fn check_credential_expiration(env: Env, credential_id: u64) -> u8 {
+    pub fn check_credential_expiration(env: Env, credential_id: u64) -> u32 {
         let status = credential_registry::check_credential_expiration(&env, credential_id);
-        status.to_u8()
+        status.to_u8() as u32
     }
 
     /// Get credential with current expiration status

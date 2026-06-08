@@ -1,7 +1,7 @@
 import { Server, Socket } from 'socket.io';
 import { createServer } from 'http';
 import { INotification } from '../models/Notification';
-import collaborationService from './collaborationService';
+const collaborationService = require('./collaborationService').default || require('./collaborationService');
 
 // Define the shape of the notification data that will be sent to the client
 interface ClientNotificationData {

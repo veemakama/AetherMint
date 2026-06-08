@@ -169,7 +169,9 @@ export class PaymentService {
         status: PaymentStatus.COMPLETED,
         gateway: 'stellar',
         stellarTransaction: stellarPayment,
+        stellarTransactionHash: stellarPayment.transactionHash,
         createdAt: new Date(),
+        updatedAt: new Date(),
         completedAt: new Date()
       };
 
@@ -248,6 +250,7 @@ export class PaymentService {
           status: PaymentStatus.COMPLETED,
           gateway: 'stellar',
           createdAt: new Date(),
+          updatedAt: new Date(),
           completedAt: new Date(),
           refundAmount: amount,
           refundReason: reason,
@@ -264,8 +267,9 @@ export class PaymentService {
           currency: payment.currency,
           method: payment.method,
           status: PaymentStatus.COMPLETED,
-          gateway: payment.method,
+          gateway: payment.method as string,
           createdAt: new Date(),
+          updatedAt: new Date(),
           completedAt: new Date(),
           refundAmount: amount,
           refundReason: reason,
@@ -372,9 +376,9 @@ export class PaymentService {
 
     // Mock monthly data - in production, this would be calculated from actual timestamps
     const revenueByMonth = [
-      { month: '2024-01', revenue: 15000 },
-      { month: '2024-02', revenue: 18000 },
-      { month: '2024-03', revenue: 22000 }
+      { month: '2024-01', revenue: 15000, count: 150 },
+      { month: '2024-02', revenue: 18000, count: 180 },
+      { month: '2024-03', revenue: 22000, count: 220 }
     ];
 
     const enrollmentsByMonth = [
@@ -429,7 +433,7 @@ export class PaymentService {
       failureReasons,
       refundReasons,
       enrollmentsByMonth
-    };
+    } as any;
   }
 
   /**

@@ -11,7 +11,7 @@ import {
   CourseEnrollmentSummary
 } from '../models/Enrollment';
 import { EnrollmentService } from './EnrollmentService';
-import { NotificationService } from '../services/notificationService';
+import { NotificationService } from '../services/NotificationService';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface CapacityRule {

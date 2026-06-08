@@ -88,7 +88,7 @@ pub fn issue_credential(
 
 /// Verify a credential using packed timestamp
 pub fn verify_credential(env: &Env, credential_id: u64) -> bool {
-    let mut credential: Credential = env
+    let credential: Credential = env
         .storage()
         .persistent()
         .get(&CredentialKey::Credential(credential_id))
@@ -176,9 +176,11 @@ pub fn get_credential_count(env: &Env) -> u64 {
 fn generate_string_hash(string: &String) -> u64 {
     let mut hash: u64 = 0;
     let mut buf = [0u8; 256];
-    let written = string.copy_into_slice(&mut buf);
-    for i in 0..written {
-        hash = hash.wrapping_mul(31).wrapping_add(buf[i as usize] as u64);
+    let len = string.len() as usize;
+    let buf_len = if len < 256 { len } else { 256usize };
+    string.copy_into_slice(&mut buf[..buf_len]);
+    for i in 0..buf_len {
+        hash = hash.wrapping_mul(31).wrapping_add(buf[i] as u64);
     }
     hash
 }

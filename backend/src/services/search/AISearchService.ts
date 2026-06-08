@@ -4,10 +4,10 @@
  */
 
 import { Course, SearchFilter, SearchResult, SearchAnalytics as BaseSearchAnalytics } from '../../models/Course';
-import { AISearchEngine, AISearchResult, AISearchOptions, SearchIntent } from '../search/AISearchEngine';
-import { SemanticSearch } from '../search/SemanticSearch';
-import { NaturalLanguageProcessor } from '../search/NaturalLanguageProcessor';
-import { IntelligentRanking } from '../search/IntelligentRanking';
+import { AISearchEngine, AISearchResult, AISearchOptions, SearchIntent } from '../../search/AISearchEngine';
+import { SemanticSearch } from '../../search/SemanticSearch';
+import { NaturalLanguageProcessor } from '../../search/NaturalLanguageProcessor';
+import { IntelligentRanking } from '../../search/IntelligentRanking';
 import logger from '../../utils/logger';
 
 export interface AISearchRequest {
@@ -22,7 +22,7 @@ export interface AISearchRequest {
 export interface AISearchResponse {
   results: AISearchResult;
   suggestions?: string[];
-  intent?: SearchIntent;
+  intent?: any;
   analytics: AISearchAnalytics;
   performanceMetrics: PerformanceMetrics;
 }
@@ -194,7 +194,7 @@ export class AISearchService {
   /**
    * Recognize search intent
    */
-  async recognizeIntent(query: string): Promise<SearchIntent> {
+  async recognizeIntent(query: string): Promise<any> {
     try {
       return await this.nlpProcessor.recognizeIntent(query);
     } catch (error) {
@@ -528,7 +528,7 @@ export class AISearchService {
   /**
    * Map intent complexity to query complexity
    */
-  private mapIntentToComplexity(complexity: string): 'simple' | 'moderate' | 'complex' {
+  private mapIntentToComplexity(complexity: any): 'simple' | 'moderate' | 'complex' {
     switch (complexity) {
       case 'simple': return 'simple';
       case 'moderate': return 'moderate';

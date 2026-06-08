@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { EventEmitter } from 'events';
 import logger from '../../utils/logger';
-import { MediaFormat } from '../models/Content';
+import { MediaFormat } from '../../models/Content';
 
 export interface CompressionConfig {
   contentType: 'image' | 'video' | 'audio' | 'document';
@@ -242,7 +242,8 @@ export class IntelligentCompressionService {
         
         // Get dominant colors
         try {
-          const { dominant } = await image.stats();
+          const imgStats = await (image as any).stats();
+          const dominant = (imgStats as any).dominant;
           analysis.dominantColors = this.extractDominantColors(dominant);
         } catch (error) {
           logger.warn('Could not extract dominant colors:', error);
@@ -345,7 +346,7 @@ export class IntelligentCompressionService {
       case 'frequency_optimization':
         const sharpen = optimization.parameters.sharpen || false;
         if (sharpen) {
-          return image.sharpen({ sigma: 1, flat: 1, jagged: 2 });
+          return (image as any).sharpen({ sigma: 1, flat: 1, jagged: 2 });
         }
         return image;
 

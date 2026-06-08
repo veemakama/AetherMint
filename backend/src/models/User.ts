@@ -1,8 +1,18 @@
 export enum UserRole {
   STUDENT = 'student',
+  EDUCATOR = 'educator',
   INSTRUCTOR = 'instructor',
   ADMIN = 'admin',
   MODERATOR = 'moderator'
+}
+
+export interface User {
+  id: string;
+  email: string;
+  username: string;
+  role: UserRole;
+  profile?: UserProfile;
+  address?: string;
 }
 
 export enum PrivacyLevel {
@@ -12,15 +22,15 @@ export enum PrivacyLevel {
 }
 
 export interface UserProfile {
-  owner: string; // Stellar Address
+  owner: string;
   username: string;
   email?: string;
   bio?: string;
   avatarUrl?: string;
   createdAt: number;
   updatedAt: number;
-  achievements: number[]; // Achievement IDs
-  credentials: number[]; // Credential IDs
+  achievements: number[];
+  credentials: number[];
   reputation: number;
   privacyLevel: PrivacyLevel;
   role: UserRole;

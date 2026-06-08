@@ -8,7 +8,7 @@ import {
 } from '../models/Quiz';
 import quizService from './quizService';
 import codeExecutionService from './codeExecutionService';
-import plagiarismDetectionService from './plagiarismDetectionService';
+const plagiarismDetectionService = require('./plagiarismDetectionService').default || require('./plagiarismDetectionService');
 
 /**
  * Grading Service
@@ -156,7 +156,7 @@ class GradingService {
   private async gradeCodeSubmissionAsync(question: Question, answer: QuizAnswer): Promise<QuizAnswer> {
     const code = answer.answer.toString();
     const testCases = question.testCases || [];
-    const evaluation = await codeExecutionService.evaluate(code, 'javascript', testCases);
+    const evaluation = await (codeExecutionService as any).evaluate(code, 'javascript', testCases);
     
     if (!evaluation.success) {
       return { ...answer, isCorrect: false, pointsEarned: 0, feedback: evaluation.error };

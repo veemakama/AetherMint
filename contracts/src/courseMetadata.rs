@@ -1,6 +1,6 @@
-use crate::utils::storage::{PackedRating, PackedTimestamps, StorageUtils};
+use crate::utils::storage::{PackedRating, PackedTimestamps};
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, Env, Map, String, Symbol, Vec, U256,
+    contract, contractimpl, contracttype, Address, Env, String, Vec,
 };
 
 /// Optimized course status using bit packing
@@ -14,11 +14,11 @@ pub enum CourseStatus {
 }
 
 impl CourseStatus {
-    pub fn to_u8(&self) -> u8 {
-        *self as u8
+    pub fn to_u32(&self) -> u32 {
+        *self as u32
     }
 
-    pub fn from_u8(value: u8) -> Self {
+    pub fn from_u32(value: u32) -> Self {
         match value & 0x03 {
             0 => CourseStatus::Active,
             1 => CourseStatus::Inactive,
@@ -47,7 +47,7 @@ pub struct CourseMetadata {
     pub thumbnail_hash: String,     // Hash of thumbnail URL
     pub tags_hash: String,          // Hash of tags vector
     pub language: String,
-    pub flags: u8, // Packed certificate_enabled, verification status, etc.
+    pub flags: u32, // Packed certificate_enabled, verification status, etc.
     pub max_students: u32,
     pub current_enrollments: u32,
     pub timestamps: PackedTimestamps,
@@ -75,11 +75,11 @@ pub struct InstructorProfile {
     pub name: String,
     pub bio_hash: String,       // Hash of bio string
     pub expertise_hash: String, // Hash of expertise vector
-    pub experience_years: u16,
+    pub experience_years: u32,
     pub rating: PackedRating,
     pub course_count: u32,
     pub total_students: u32,
-    pub flags: u8, // Packed verification status and other booleans
+    pub flags: u32, // Packed verification status and other booleans
     pub created_at: u64,
 }
 
@@ -198,7 +198,7 @@ impl CourseMetadataContract {
         let verification_hash = verification_hash_buf;
 
         // Pack flags
-        let mut flags = CourseStatus::Active.to_u8();
+        let mut flags = CourseStatus::Active.to_u32();
         if params.certificate_enabled {
             flags |= 0x04;
         }
@@ -260,7 +260,7 @@ impl CourseMetadataContract {
             .set(&CourseMetadataKey::CourseRating(course_id_str.clone()), &rating);
 
         // Update instructor course count
-        let mut instructor_profile = Self::get_instructor_profile(env, instructor.clone());
+        let mut instructor_profile = Self::get_instructor_profile(env.clone(), instructor.clone());
         instructor_profile.course_count += 1;
         env.storage().instance().set(
             &CourseMetadataKey::Instructor(instructor),
@@ -321,7 +321,7 @@ impl CourseMetadataContract {
             course_metadata.max_students = new_max_students;
         }
         if let Some(new_status) = params.status {
-            course_metadata.flags = (course_metadata.flags & !0x03) | new_status.to_u8();
+            course_metadata.flags = (course_metadata.flags & !0x03) | new_status.to_u32();
         }
 
         // Update timestamp
@@ -401,9 +401,11 @@ impl CourseMetadataContract {
         for i in 0..vec.len() {
             let item = vec.get(i).unwrap();
             let mut buf = [0u8; 256];
-            let written = item.copy_into_slice(&mut buf);
-            for j in 0..written {
-                hash = hash.wrapping_mul(31).wrapping_add(buf[j as usize] as u64);
+            let len = item.len() as usize;
+            let buf_len = if len < 256 { len } else { 256usize };
+            item.copy_into_slice(&mut buf[..buf_len]);
+            for j in 0..buf_len {
+                hash = hash.wrapping_mul(31).wrapping_add(buf[j] as u64);
             }
         }
         u64_to_hex_string(hash)
@@ -413,9 +415,11 @@ impl CourseMetadataContract {
     fn generate_string_hash(string: &String) -> String {
         let mut hash: u64 = 0;
         let mut buf = [0u8; 256];
-        let written = string.copy_into_slice(&mut buf);
-        for i in 0..written {
-            hash = hash.wrapping_mul(31).wrapping_add(buf[i as usize] as u64);
+        let len = string.len() as usize;
+        let buf_len = if len < 256 { len } else { 256usize };
+        string.copy_into_slice(&mut buf[..buf_len]);
+        for i in 0..buf_len {
+            hash = hash.wrapping_mul(31).wrapping_add(buf[i] as u64);
         }
         u64_to_hex_string(hash)
     }
@@ -559,7 +563,7 @@ fn u64_to_course_id(env: &Env, num: u64) -> soroban_sdk::String {
         pos += 1;
     } else {
         let mut n = num;
-        let mut digits_start = pos;
+        let digits_start = pos;
         while n > 0 {
             buf[pos] = b'0' + (n % 10) as u8;
             n /= 10;
@@ -591,7 +595,7 @@ fn u64_to_completion_id(env: &Env, num: u64) -> soroban_sdk::String {
         pos += 1;
     } else {
         let mut n = num;
-        let mut digits_start = pos;
+        let digits_start = pos;
         while n > 0 {
             buf[pos] = b'0' + (n % 10) as u8;
             n /= 10;
@@ -609,16 +613,20 @@ fn u64_to_completion_id(env: &Env, num: u64) -> soroban_sdk::String {
 }
 
 /// Simple hash concatenation without format!
-fn simple_hash_concat(title: &soroban_sdk::String, description: &soroban_sdk::String, instructor: &Address, price: u64, timestamp: u64) -> soroban_sdk::String {
+fn simple_hash_concat(title: &soroban_sdk::String, description: &soroban_sdk::String, _instructor: &Address, price: u64, timestamp: u64) -> soroban_sdk::String {
     let mut combined: u64 = 0;
     let mut t_buf = [0u8; 256];
-    let t_written = title.copy_into_slice(&mut t_buf);
-    for i in 0..t_written {
+    let t_len = title.len() as usize;
+    let t_buf_len = if t_len < 256 { t_len } else { 256usize };
+    title.copy_into_slice(&mut t_buf[..t_buf_len]);
+    for i in 0..t_buf_len {
         combined = combined.wrapping_mul(31).wrapping_add(t_buf[i as usize] as u64);
     }
     let mut d_buf = [0u8; 512];
-    let d_written = description.copy_into_slice(&mut d_buf);
-    for i in 0..d_written {
+    let d_len = description.len() as usize;
+    let d_buf_len = if d_len < 512 { d_len } else { 512usize };
+    description.copy_into_slice(&mut d_buf[..d_buf_len]);
+    for i in 0..d_buf_len {
         combined = combined.wrapping_mul(31).wrapping_add(d_buf[i as usize] as u64);
     }
     combined = combined.wrapping_mul(31).wrapping_add(price);
@@ -627,7 +635,7 @@ fn simple_hash_concat(title: &soroban_sdk::String, description: &soroban_sdk::St
 }
 
 /// Convert u64 to hex string without format!
-fn u64_to_hex_string(num: u64) -> soroban_sdk::String {
+fn u64_to_hex_string(_num: u64) -> soroban_sdk::String {
     // Placeholder - this should be called with env context
     // In no_std without env reference, return static value
     soroban_sdk::String::from_str(&soroban_sdk::Env::default(), "0")

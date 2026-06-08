@@ -1,5 +1,4 @@
-#![no_std]
-use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Env, String, Vec};
 
 /// Bit-packed storage utilities for gas optimization
 #[contracttype]
@@ -9,12 +8,12 @@ pub struct PackedUserFlags {
     /// Bit 2: Verified status
     /// Bit 3: Active status
     /// Bits 4-7: Reserved for future use
-    pub flags: u8,
+    pub flags: u32,
 }
 
 impl PackedUserFlags {
     pub fn new(privacy_level: u8, verified: bool, active: bool) -> Self {
-        let mut flags = privacy_level & 0x03;
+        let mut flags: u32 = (privacy_level & 0x03) as u32;
         if verified {
             flags |= 0x04;
         }
@@ -25,7 +24,7 @@ impl PackedUserFlags {
     }
 
     pub fn privacy_level(&self) -> u8 {
-        self.flags & 0x03
+        (self.flags & 0x03) as u8
     }
     pub fn is_verified(&self) -> bool {
         (self.flags & 0x04) != 0
@@ -166,7 +165,7 @@ impl StorageUtils {
         certificate_enabled: bool,
     ) {
         // Pack course flags
-        let mut flags = 0u8;
+        let mut flags: u32 = 0u32;
         if certificate_enabled {
             flags |= 0x01;
         }

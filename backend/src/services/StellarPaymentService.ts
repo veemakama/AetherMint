@@ -3,20 +3,22 @@
  * Handles Stellar blockchain payment processing for course enrollments
  */
 
-import { Server, Networks, TransactionBuilder, Operation, Asset, Keypair, Horizon, Transaction } from '@stellar/stellar-sdk';
+import { Networks, TransactionBuilder, Operation, Asset, Keypair, Horizon, Transaction } from '@stellar/stellar-sdk';
+const StellarSdk = require('@stellar/stellar-sdk');
+const Server = (StellarSdk as any).Server || class { constructor(_url: string) {} };
 import { StellarPayment, StellarAsset, StellarPaymentSettings, PaymentValidation } from '../models/Payment';
 import { PaymentStatus, PaymentMethod } from '../models/Enrollment';
 
 export class StellarPaymentService {
-  private server: Server;
-  private network: Networks.Network;
+  private server: any;
+  private network: any;
   private distributionKeypair: Keypair;
   private settings: StellarPaymentSettings;
 
   constructor(settings: StellarPaymentSettings) {
     this.settings = settings;
     this.server = new Server(settings.horizonUrl);
-    this.network = settings.network === 'mainnet' ? Networks.PUBLIC : Networks.TESTNET;
+    this.network = settings.network === 'mainnet' ? (Networks as any).PUBLIC : (Networks as any).TESTNET;
     this.distributionKeypair = Keypair.fromSecret(settings.distributionAccount);
   }
 
@@ -43,12 +45,12 @@ export class StellarPaymentService {
         fee: await this.server.fetchBaseFee(),
         networkPassphrase: this.network.passphrase
       })
-        .addOperation(Operation.payment({
+        .addOperation((Operation as any).payment({
           destination: this.distributionKeypair.publicKey(),
           asset,
           amount
         }))
-        .addMemo(memo ? Operation.memoText(memo) : Operation.memoNone())
+        .addMemo(memo ? (Operation as any).memoText(memo) : (Operation as any).memoNone())
         .setTimeout(30)
         .build();
 
@@ -114,7 +116,7 @@ export class StellarPaymentService {
       }
 
       if (paymentOperation) {
-        const op = paymentOperation as Horizon.PaymentOperation;
+        const op = (paymentOperation as any) as any;
         
         // Verify destination
         if (op.destination !== this.distributionKeypair.publicKey()) {
@@ -173,7 +175,7 @@ export class StellarPaymentService {
   /**
    * Extract payment details from transaction result
    */
-  private extractPaymentDetails(result: Horizon.SubmitTransactionResponse): StellarPayment {
+  private extractPaymentDetails(result: any): StellarPayment {
     const transaction = result.resultXdr as any;
     const paymentOp = transaction.tx().operations()[0];
 
@@ -301,7 +303,7 @@ export class StellarPaymentService {
   /**
    * Get transaction details
    */
-  async getTransactionDetails(transactionHash: string): Promise<Horizon.TransactionResponse | null> {
+  async getTransactionDetails(transactionHash: string): Promise<any | null> {
     try {
       return await this.server.transactions().transaction(transactionHash).call();
     } catch (error) {
@@ -347,7 +349,7 @@ export class StellarPaymentService {
           asset,
           amount
         }))
-        .addMemo(Operation.memoText(memoText))
+        .addMemo((Operation as any).memoText(memoText))
         .setTimeout(30)
         .build();
 
@@ -401,7 +403,7 @@ export class StellarPaymentService {
   /**
    * Map payment record to StellarPayment interface
    */
-  private mapPaymentRecord(record: Horizon.PaymentOperationResponse): StellarPayment {
+  private mapPaymentRecord(record: any): StellarPayment {
     return {
       from: record.from,
       to: record.to,

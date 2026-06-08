@@ -28,7 +28,8 @@ class UserService {
         achievements: [1, 2],
         credentials: [101],
         reputation: 50,
-        privacyLevel: PrivacyLevel.Public
+        privacyLevel: PrivacyLevel.Public,
+        role: 'student' as any
       };
     } catch (error) {
       logger.error(`Error fetching profile for ${address}`, error);
@@ -57,7 +58,8 @@ class UserService {
         achievements: [1, 2],
         credentials: [101],
         reputation: 50,
-        privacyLevel: data.privacyLevel || PrivacyLevel.Public
+        privacyLevel: data.privacyLevel || PrivacyLevel.Public,
+        role: 'student' as any
       };
     } catch (error) {
       logger.error(`Error updating profile for ${address}`, error);
@@ -111,6 +113,7 @@ class UserService {
   }
 
   async getProfileStats(address: string): Promise<UserStats> {
+    const profile = await this.getProfile(address);
     
     if (!profile) {
       return { totalCourses: 0, totalCredentials: 0, totalAchievements: 0, reputation: 0 };

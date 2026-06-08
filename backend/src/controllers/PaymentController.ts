@@ -6,7 +6,7 @@
 import { Request, Response } from 'express';
 import { PaymentService } from '../services/PaymentService';
 import { StellarPaymentService } from '../services/StellarPaymentService';
-import { NotificationService } from '../services/notificationService';
+import { NotificationService } from '../services/NotificationService';
 import { 
   Payment, 
   PaymentIntent, 

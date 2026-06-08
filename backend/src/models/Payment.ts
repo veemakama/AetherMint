@@ -7,6 +7,11 @@ import { PaymentMethod, PaymentStatus, StellarPayment } from './Enrollment';
 
 export { PaymentMethod, PaymentStatus, StellarPayment } from './Enrollment';
 
+// Type aliases used across the codebase
+export type Payment = PaymentTransaction;
+export type RefundRequest = { transactionId: string; reason: string; amount: number; };
+export type RefundAnalytics = { totalRefunds: number; totalAmount: number; reasons: Record<string, number>; };
+
 export interface PaymentGateway {
   id: string;
   name: string;
@@ -48,11 +53,13 @@ export interface PaymentTransaction {
   currency: string;
   method: PaymentMethod;
   status: PaymentStatus;
-  gateway: string;
+  gateway?: string;
   gatewayTransactionId?: string;
+  transactionId?: string;
   stellarTransaction?: StellarPayment;
+  stellarTransactionHash?: string;
   createdAt: Date;
-  updatedAt: Date;
+  updatedAt?: Date;
   completedAt?: Date;
   failedAt?: Date;
   expiresAt?: Date;

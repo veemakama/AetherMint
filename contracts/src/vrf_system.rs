@@ -1,5 +1,5 @@
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, Env, String, Vec,
+    contract, contractimpl, contracttype, Address, Bytes, Env, String, Vec,
     Map, BytesN, Symbol,
 };
 
@@ -145,7 +145,7 @@ impl VRFSystem {
             seed: seed.clone(),
             purpose,
             context,
-            block_number: env.ledger().sequence(),
+            block_number: env.ledger().sequence() as u64,
             is_fulfilled: false,
             random_value: None,
             proof: None,
@@ -163,7 +163,7 @@ impl VRFSystem {
             &request_id
         );
         env.storage().persistent().set(
-            &StorageKey::VRFRequestByUser(requester, u64::MAX),
+            &StorageKey::VRFRequestByUser(requester.clone(), u64::MAX),
             &(user_count + 1u64)
         );
 
@@ -175,11 +175,10 @@ impl VRFSystem {
         env.storage().persistent().set(&StorageKey::TotalRequests, &(total + 1));
 
         // Emit event
-        env.events().publish((
-            Symbol::new(&env, "randomness_requested"),
-            request_id,
-            requester,
-        ));
+        env.events().publish(
+            (Symbol::new(&env, "randomness_requested"),),
+            (request_id, requester.clone()),
+        );
 
         request_id
     }
@@ -214,7 +213,7 @@ impl VRFSystem {
 
         // Aggregate entropy with existing contributions
         let current_seed = request.seed.clone();
-        let new_seed = Self::aggregate_entropy(&env, current_seed.as_ref(), entropy.as_ref());
+        let new_seed = Self::aggregate_entropy(&env, &current_seed, &entropy);
         request.seed = new_seed;
 
         env.storage().persistent().set(&StorageKey::VRFRequest(request_id), &request);
@@ -247,10 +246,10 @@ impl VRFSystem {
         env.storage().persistent().set(&StorageKey::VRFRequest(request_id), &request);
 
         // Emit event
-        env.events().publish((
-            Symbol::new(&env, "randomness_fulfilled"),
-            request_id,
-        ));
+        env.events().publish(
+            (Symbol::new(&env, "randomness_fulfilled"),),
+            (request_id,),
+        );
     }
 
     /// Create randomness beacon from aggregated entropy
@@ -267,7 +266,7 @@ impl VRFSystem {
             id: beacon_id,
             entropy_hash,
             timestamp: env.ledger().timestamp(),
-            block_number: env.ledger().sequence(),
+            block_number: env.ledger().sequence() as u64,
             contributors,
             is_verified: true,
         };
@@ -288,7 +287,7 @@ impl VRFSystem {
     ) {
         committer.require_auth();
 
-        let key = StorageKey::Commitment(committer.clone(), env.ledger().sequence());
+        let key = StorageKey::Commitment(committer.clone(), env.ledger().sequence() as u64);
         
         env.storage().temporary().set(&key, &CommitmentData {
             hash: commitment_hash,
@@ -303,7 +302,7 @@ impl VRFSystem {
         committer: Address,
         revealed_value: String,
     ) -> String {
-        let key = StorageKey::Commitment(committer.clone(), env.ledger().sequence());
+        let key = StorageKey::Commitment(committer.clone(), env.ledger().sequence() as u64);
         
         let commitment: CommitmentData = env.storage().temporary()
             .get(&key)
@@ -346,17 +345,16 @@ impl VRFSystem {
             .unwrap_or_else(|| panic!("Beacon not found"));
 
         // Combine seed with beacon entropy
-        let combined = Self::combine_seeds(&env, seed.as_ref(), beacon.entropy_hash.as_ref());
+        let combined = Self::combine_seeds(&env, &seed, &beacon.entropy_hash);
         
         // Generate random value in range
         let random_value = Self::random_in_range(&combined, min, max);
 
         // Log usage
-        env.events().publish((
-            Symbol::new(&env, "random_generated"),
-            purpose,
-            requester,
-        ));
+        env.events().publish(
+            (Symbol::new(&env, "random_generated"),),
+            (purpose, requester),
+        );
 
         random_value
     }
@@ -454,30 +452,21 @@ impl VRFSystem {
 
     // ========== Internal Helper Functions ==========
 
-    fn aggregate_entropy(env: &Env, entropy1: &[u8], entropy2: &[u8]) -> BytesN<32> {
-        let mut combined: Vec<u8> = Vec::new(env);
-        for byte in entropy1.iter() {
-            combined.push_back(*byte);
-        }
-        for byte in entropy2.iter() {
-            combined.push_back(*byte);
-        }
+    fn aggregate_entropy(env: &Env, entropy1: &BytesN<32>, entropy2: &BytesN<32>) -> BytesN<32> {
+        let mut combined = soroban_sdk::Bytes::new(env);
+        combined.append(&Bytes::from_slice(env, &entropy1.to_array()));
+        combined.append(&Bytes::from_slice(env, &entropy2.to_array()));
         
         env.crypto().sha256(&combined)
     }
 
-    fn combine_seeds(env: &Env, seed1: &[u8], seed2: &[u8]) -> [u8; 32] {
-        let mut combined: Vec<u8> = Vec::new(env);
-        for byte in seed1.iter() {
-            combined.push_back(*byte);
-        }
-        for byte in seed2.iter() {
-            combined.push_back(*byte);
-        }
+    fn combine_seeds(env: &Env, seed1: &BytesN<32>, seed2: &BytesN<32>) -> [u8; 32] {
+        let mut combined = soroban_sdk::Bytes::new(env);
+        combined.append(&Bytes::from_slice(env, &seed1.to_array()));
+        combined.append(&Bytes::from_slice(env, &seed2.to_array()));
         
         let hash = env.crypto().sha256(&combined);
-        let result: [u8; 32] = hash.into();
-        result
+        hash.to_array()
     }
 
     fn random_in_range(data: &[u8; 32], min: u128, max: u128) -> u128 {

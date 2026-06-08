@@ -1,7 +1,6 @@
-#![no_std]
-use crate::utils::storage::{PackedTimestamps, PackedUserFlags, StorageUtils};
+use crate::utils::storage::{PackedTimestamps, PackedUserFlags};
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
+    contract, contracttype, symbol_short, Address, Env, String, Vec,
 };
 
 /// Optimized user profile with packed storage
@@ -133,9 +132,11 @@ pub fn get_user_credential_ids(env: &Env, user: Address) -> Vec<u64> {
 fn generate_string_hash(string: &String) -> u64 {
     let mut hash: u64 = 0;
     let mut buf = [0u8; 256];
-    let written = string.copy_into_slice(&mut buf);
-    for i in 0..written {
-        hash = hash.wrapping_mul(31).wrapping_add(byte as u64);
+    let len = string.len() as usize;
+    let buf_len = if len < 256 { len } else { 256usize };
+    string.copy_into_slice(&mut buf[..buf_len]);
+    for i in 0..buf_len {
+        hash = hash.wrapping_mul(31).wrapping_add(buf[i] as u64);
     }
     hash
 }
@@ -173,7 +174,8 @@ impl UserProfileContract {
         let timestamps = PackedTimestamps::new(now, now);
         let flags = PackedUserFlags::new(privacy_level.to_u8(), false, true);
 
-        let profile = if let Some(mut existing_profile) = env
+        let default_hash = generate_string_hash(&String::from_str(&env, ""));
+        let mut profile = if let Some(mut existing_profile) = env
             .storage()
             .instance()
             .get::<_, UserProfile>(&ProfileKey::User(owner.clone()))
@@ -187,73 +189,42 @@ impl UserProfileContract {
                 existing_profile.flags.is_verified(),
                 existing_profile.flags.is_active(),
             );
-
-            // Store optional data separately
-            if let Some(email) = email {
-                let email_hash = generate_string_hash(&email);
-                existing_profile.email_hash = email_hash;
-                env.storage()
-                    .instance()
-                    .set(&ProfileKey::UserEmail(owner.clone()), &email);
-            }
-            if let Some(bio) = bio {
-                let bio_hash = generate_string_hash(&bio);
-                existing_profile.bio_hash = bio_hash;
-                env.storage()
-                    .instance()
-                    .set(&ProfileKey::UserBio(owner.clone()), &bio);
-            }
-            if let Some(avatar) = avatar_url {
-                let avatar_hash = generate_string_hash(&avatar);
-                existing_profile.avatar_hash = avatar_hash;
-                env.storage()
-                    .instance()
-                    .set(&ProfileKey::UserAvatar(owner.clone()), &avatar);
-            }
-
             existing_profile
         } else {
-            // Create new profile
-            let email_hash =
-                generate_string_hash(&email.unwrap_or_else(|| String::from_str(&env, "")));
-            let bio_hash =
-                generate_string_hash(&bio.unwrap_or_else(|| String::from_str(&env, "")));
-            let avatar_hash = generate_string_hash(
-                &avatar_url.unwrap_or_else(|| String::from_str(&env, "")),
-            );
-
-            let new_profile = UserProfile {
+            // Create new profile with placeholder hashes
+            UserProfile {
                 owner: owner.clone(),
                 username: username.clone(),
-                email_hash,
-                bio_hash,
-                avatar_hash,
+                email_hash: default_hash,
+                bio_hash: default_hash,
+                avatar_hash: default_hash,
                 timestamps,
                 achievement_count: 0,
                 credential_count: 0,
                 reputation: 0,
                 flags,
-            };
-
-            // Store optional data separately if provided
-            if let Some(email) = email {
-                env.storage()
-                    .instance()
-                    .set(&ProfileKey::UserEmail(owner.clone()), &email);
             }
-            if let Some(bio) = bio {
-                env.storage()
-                    .instance()
-                    .set(&ProfileKey::UserBio(owner.clone()), &bio);
-            }
-            if let Some(avatar) = avatar_url {
-                env.storage()
-                    .instance()
-                    .set(&ProfileKey::UserAvatar(owner.clone()), &avatar);
-            }
-
-            new_profile
         };
+
+        // Handle optional data uniformly after if/else
+        if let Some(e) = email {
+            profile.email_hash = generate_string_hash(&e);
+            env.storage()
+                .instance()
+                .set(&ProfileKey::UserEmail(owner.clone()), &e);
+        }
+        if let Some(b) = bio {
+            profile.bio_hash = generate_string_hash(&b);
+            env.storage()
+                .instance()
+                .set(&ProfileKey::UserBio(owner.clone()), &b);
+        }
+        if let Some(a) = avatar_url {
+            profile.avatar_hash = generate_string_hash(&a);
+            env.storage()
+                .instance()
+                .set(&ProfileKey::UserAvatar(owner.clone()), &a);
+        }
 
         // Store the profile
         env.storage()
@@ -307,7 +278,7 @@ impl UserProfileContract {
         // Pack timestamp and verification status
         let packed_timestamp = timestamp << 1; // Reserve bit 0 for verification status
         let badge_hash =
-            generate_string_hash(&badge_url.unwrap_or_else(|| String::from_str(&env, "")));
+            generate_string_hash(&badge_url.as_ref().cloned().unwrap_or_else(|| String::from_str(&env, "")));
 
         // Create achievement
         let achievement = Achievement {

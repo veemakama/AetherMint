@@ -12,7 +12,7 @@ import {
 } from '../models/Enrollment';
 import { PaymentService } from './PaymentService';
 import { EnrollmentService } from './EnrollmentService';
-import { NotificationService } from '../services/notificationService';
+import { NotificationService } from '../services/NotificationService';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface RefundPolicy {

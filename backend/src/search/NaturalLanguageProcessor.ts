@@ -238,7 +238,7 @@ export class NaturalLanguageProcessor {
       ratings: [],
       keywords: [],
       phrases: []
-    };
+    } as any;
 
     // Extract skills
     for (const skill of this.skillKeywords) {
@@ -472,18 +472,7 @@ export class NaturalLanguageProcessor {
     return {
       type: 'course_search',
       confidence: 0.5,
-      entities: {
-        skills: [],
-        categories: [],
-        levels: [],
-        price_ranges: [],
-        durations: [],
-        languages: [],
-        instructors: [],
-        ratings: [],
-        keywords: [],
-        phrases: []
-      },
+      entities: { category: '' },
       sentiment: 'neutral',
       urgency: 'medium',
       complexity: 'simple'

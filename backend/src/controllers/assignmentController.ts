@@ -15,17 +15,17 @@ import {
 import { UserRole } from '../models/User';
 import { AssignmentService } from '../services/assignmentService';
 import { FileUploadService } from '../services/fileUploadService';
-import { GradingService } from '../services/gradingService';
+import GradingService from '../services/gradingService';
 import { PlagiarismService } from '../services/plagiarismService';
-import { NotificationService } from '../services/notificationService';
+import { NotificationService } from '../services/NotificationService';
 import { validateAssignment, validateSubmission } from '../utils/validation';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 
 export class AssignmentController {
   constructor(
     private assignmentService: AssignmentService,
     private fileUploadService: FileUploadService,
-    private gradingService: GradingService,
+    private gradingService: any,
     private plagiarismService: PlagiarismService,
     private notificationService: NotificationService
   ) {}
@@ -44,7 +44,7 @@ export class AssignmentController {
       // Validate assignment data
       const validation = validateAssignment(assignmentData);
       if (!validation.isValid) {
-        return res.status(400).json({ error: validation.error });
+        return res.status(400).json({ error: (validation as any).error || validation.errors?.[0]?.message || 'Validation failed' });
       }
 
       const assignment = await this.assignmentService.createAssignment({
@@ -54,7 +54,7 @@ export class AssignmentController {
       });
 
       // Notify enrolled students
-      await this.notificationService.notifyAssignmentCreated(assignment);
+      await (this.notificationService as any).notifyAssignmentCreated(assignment);
 
       logger.info(`Assignment created: ${assignment.id} by ${req.user.id}`);
       res.status(201).json(assignment);
@@ -368,7 +368,7 @@ export class AssignmentController {
       });
 
       // Notify student
-      await this.notificationService.notifyGradeCreated(grade);
+      await (this.notificationService as any).notifyGradeCreated(grade);
 
       logger.info(`Submission graded: ${submissionId} by ${req.user.id}`);
       res.status(201).json(grade);

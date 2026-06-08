@@ -285,9 +285,10 @@ pub fn batch_update_expiration_status(env: &Env, credential_ids: Vec<u64>) -> Ve
     let mut expired_credentials = Vec::new(env);
 
     for credential_id in credential_ids.iter() {
-        let status = check_credential_expiration(env, *credential_id);
+        let id_val: u64 = credential_id;
+        let status = check_credential_expiration(env, id_val);
         if status == CredentialStatus::Expired {
-            expired_credentials.push_back(*credential_id);
+            expired_credentials.push_back(id_val);
         }
     }
 
@@ -388,7 +389,7 @@ pub fn get_credentials_expiring_soon(env: &Env, within_seconds: u64) -> Vec<u64>
     // an indexed storage structure for better performance
     let credential_count = get_credential_count(env);
     for i in 1..=credential_count {
-        if let Ok(credential) = env
+        if let Some(credential) = env
             .storage()
             .persistent()
             .get::<_, CredentialRegistry>(&CredentialRegistryKey::Credential(i))

@@ -3,7 +3,7 @@
  * Main orchestrator for AI-powered search capabilities
  */
 
-import { Course, SearchFilter, SearchResult, SearchAnalytics } from '../models/Course';
+import { Course, SearchFilter, SearchResult } from '../models/Course';
 import { SemanticSearch } from './SemanticSearch';
 import { NaturalLanguageProcessor } from './NaturalLanguageProcessor';
 import { IntelligentRanking } from './IntelligentRanking';
@@ -20,7 +20,7 @@ export interface AISearchOptions {
 }
 
 export interface SearchIntent {
-  type: 'course_search' | 'skill_search' | 'career_path' | 'comparison' | 'recommendation';
+  type: 'course_search' | 'skill_search' | 'career_path' | 'comparison' | 'recommendation' | 'filter_query';
   confidence: number;
   entities: {
     skills?: string[];
@@ -29,9 +29,12 @@ export interface SearchIntent {
     price_range?: { min: number; max: number };
     duration?: { min: number; max: number };
     language?: string;
+    instructor?: string;
+    rating?: number;
   };
   sentiment: 'positive' | 'neutral' | 'negative';
   urgency: 'low' | 'medium' | 'high';
+  complexity?: 'simple' | 'moderate' | 'complex';
 }
 
 export interface AISearchResult extends SearchResult {
@@ -55,7 +58,7 @@ export interface SearchAnalytics {
   resultsClicked?: string[];
   semanticSearchUsed: boolean;
   nlpProcessingUsed: boolean;
-  intentRecognition: SearchIntent;
+  intentRecognition: any;
   processingTime: number;
   accuracy: number;
 }
@@ -106,7 +109,7 @@ export class AISearchEngine {
       if (this.options.enableNLPProcessing) {
         const nlpResult = await this.nlpProcessor.processQuery(query);
         processedQuery = nlpResult.processedQuery;
-        searchIntent = nlpResult.intent;
+        searchIntent = (nlpResult.intent as any) as SearchIntent;
         suggestions = nlpResult.suggestions;
       }
 
@@ -140,7 +143,7 @@ export class AISearchEngine {
         combinedResults = await this.intelligentRanking.rankResults(
           combinedResults,
           processedQuery,
-          searchIntent,
+          searchIntent as any,
           userId
         );
       }
@@ -211,7 +214,7 @@ export class AISearchEngine {
    */
   async recognizeIntent(query: string): Promise<SearchIntent> {
     try {
-      return await this.nlpProcessor.recognizeIntent(query);
+      return ((await this.nlpProcessor.recognizeIntent(query)) as any) as SearchIntent;
     } catch (error) {
       logger.error('Error recognizing intent', error);
       return {

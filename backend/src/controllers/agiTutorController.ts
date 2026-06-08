@@ -58,7 +58,7 @@ export class AGITutorController {
         data: {
           session: learningSession,
           adaptations: studentProfile.adaptations,
-          emotionalSupport: emotionalProfile.supportStrategies,
+          emotionalSupport: (emotionalProfile as any).supportStrategies,
           crossDomainInsights: crossDomainConnections
         }
       });

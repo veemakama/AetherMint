@@ -33,7 +33,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { seed, purpose, context } = req.body;
-      const requester = req.user?.address;
+      const requester = (req.user as any)?.address;
 
       if (!requester) {
         return res.status(401).json({ 
@@ -82,7 +82,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { purpose, seed, min, max } = req.body;
-      const requester = req.user?.address;
+      const requester = (req.user as any)?.address;
 
       if (!requester) {
         return res.status(401).json({ 
@@ -265,7 +265,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { commitmentHash, validUntil } = req.body;
-      const committer = req.user?.address;
+      const committer = (req.user as any)?.address;
 
       if (!committer) {
         return res.status(401).json({ 
@@ -309,7 +309,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { revealedValue } = req.body;
-      const committer = req.user?.address;
+      const committer = (req.user as any)?.address;
 
       if (!committer) {
         return res.status(401).json({ 

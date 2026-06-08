@@ -1,5 +1,5 @@
 use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, Map, String, Symbol, Vec,
+    contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, Map, Symbol, Vec,
 };
 
 #[contracttype]
@@ -12,7 +12,7 @@ pub struct ConsciousnessData {
     pub knowledge_vector: Bytes,
     pub experience_timestamp: u64,
     pub continuity_proof: Bytes,
-    pub evolution_stage: u8,
+    pub evolution_stage: u32,
 }
 
 #[contracttype]
@@ -30,7 +30,7 @@ pub struct ConsciousnessMarketplaceItem {
     pub consciousness_id: Bytes,
     pub price: u64,
     pub access_duration: u64, // In seconds
-    pub license_type: u8,     // 0: Full, 1: ReadOnly, 2: Learning
+    pub license_type: u32,     // 0: Full, 1: ReadOnly, 2: Learning
     pub verification_required: bool,
 }
 
@@ -43,16 +43,19 @@ impl ConsciousnessContract {
     pub fn upload_consciousness(
         env: Env,
         owner: Address,
-        neural_data: Vec<u8>,
+        neural_data: Bytes,
         encoding_version: u32,
         continuity_proof: Option<ContinuityProof>,
     ) -> Bytes {
         // Generate unique consciousness ID using sha256
         let owner_str: soroban_sdk::String = owner.to_string();
         let owner_bytes: soroban_sdk::Bytes = crate::string_to_bytes(&env, &owner_str);
-        let consciousness_id = env.crypto().sha256(
-            &[&owner_bytes, &neural_data].concat()
-        );
+        
+        let mut combined_id = Bytes::new(&env);
+        combined_id.append(&owner_bytes);
+        combined_id.append(&neural_data);
+        let consciousness_id_hash = env.crypto().sha256(&combined_id);
+        let consciousness_id = Bytes::from_slice(&env, &consciousness_id_hash.to_array());
 
         // Create neural hash for verification
         let neural_hash = env.crypto().sha256(&neural_data);
@@ -69,7 +72,7 @@ impl ConsciousnessContract {
                 .as_ref()
                 .map(|_proof| Bytes::from_slice(&env, &[0u8; 32]))
                 .unwrap_or_else(|| Bytes::from_slice(&env, &[0u8; 32])),
-            evolution_stage: 1,
+            evolution_stage: 1u32,
         };
 
         // Store consciousness data
@@ -139,10 +142,11 @@ impl ConsciousnessContract {
 
             // Verify transfer proof (simplified)
             let proof_hash = env.crypto().sha256(&transfer_proof);
-            let expected_hash = env.crypto().sha256(
-                &[&consciousness_id, &Bytes::from_slice(&env, b"transfer")]
-                    .concat(),
-            );
+            
+            let mut expected_data = Bytes::new(&env);
+            expected_data.append(&consciousness_id);
+            expected_data.append(&Bytes::from_slice(&env, b"transfer"));
+            let expected_hash = env.crypto().sha256(&expected_data);
 
             if proof_hash != expected_hash {
                 return false;
@@ -165,7 +169,7 @@ impl ConsciousnessContract {
                 .unwrap_or_else(|| Map::new(&env));
 
             // Remove from old owner
-            if let Some(mut old_list) = owner_map.get(old_owner) {
+            if let Some(old_list) = owner_map.get(old_owner.clone()) {
                 let mut new_list: Vec<Bytes> = Vec::new(&env);
                 for i in 0..old_list.len() {
                     let id = old_list.get(i).unwrap();
@@ -195,11 +199,12 @@ impl ConsciousnessContract {
         env: Env,
         current_consciousness_id: Bytes,
         previous_consciousness_id: Option<Bytes>,
-        knowledge_transfer_data: Vec<u8>,
+        knowledge_transfer_data: Bytes,
     ) -> ContinuityProof {
-        let lifetime_transition_hash = env.crypto().sha256(
-            &[&current_consciousness_id, &knowledge_transfer_data].concat(),
-        );
+        let mut combined_hash = Bytes::new(&env);
+        combined_hash.append(&current_consciousness_id);
+        combined_hash.append(&knowledge_transfer_data);
+        let lifetime_transition_hash = env.crypto().sha256(&combined_hash);
 
         // Calculate knowledge transfer ratio
         let knowledge_transfer_ratio = if knowledge_transfer_data.is_empty() {
@@ -231,7 +236,7 @@ impl ConsciousnessContract {
         consciousness_id: Bytes,
         price: u64,
         access_duration: u64,
-        license_type: u8,
+        license_type: u32,
     ) -> bool {
         let consciousness_key = Symbol::new(&env, "consciousness");
         let consciousness_map: Map<Bytes, ConsciousnessData> = env
@@ -282,12 +287,14 @@ impl ConsciousnessContract {
             .get(&marketplace_key)
             .unwrap_or_else(|| Map::new(&env));
 
-        if let Some(marketplace_item) = marketplace_map.get(consciousness_id) {
+        if let Some(marketplace_item) = marketplace_map.get(consciousness_id.clone()) {
             // Verify payment (simplified)
             let payment_hash = env.crypto().sha256(&payment_proof);
             let buyer_str: soroban_sdk::String = buyer.to_string();
             let buyer_bytes: soroban_sdk::Bytes = crate::string_to_bytes(&env, &buyer_str);
-            let expected_data = [&Bytes::from_slice(&env, b"payment"), &buyer_bytes].concat();
+            let mut expected_data = Bytes::new(&env);
+            expected_data.append(&Bytes::from_slice(&env, b"payment"));
+            expected_data.append(&buyer_bytes);
             let expected_hash = env.crypto().sha256(&expected_data);
 
             if payment_hash != expected_hash {
@@ -317,7 +324,7 @@ impl ConsciousnessContract {
     }
 
     /// Update consciousness evolution stage
-    pub fn update_evolution(env: Env, consciousness_id: Bytes, new_knowledge: Vec<u8>) -> bool {
+    pub fn update_evolution(env: Env, consciousness_id: Bytes, new_knowledge: Bytes) -> bool {
         let consciousness_key = Symbol::new(&env, "consciousness");
         let mut consciousness_map: Map<Bytes, ConsciousnessData> = env
             .storage()
@@ -328,7 +335,7 @@ impl ConsciousnessContract {
         if let Some(mut consciousness_data) = consciousness_map.get(consciousness_id.clone()) {
             // Update knowledge vector and evolution stage
             consciousness_data.knowledge_vector = new_knowledge;
-            consciousness_data.evolution_stage += 1;
+            consciousness_data.evolution_stage += 1u32;
             consciousness_data.experience_timestamp = env.ledger().timestamp();
 
             // Recalculate neural hash
@@ -355,9 +362,11 @@ impl ConsciousnessContract {
             .get(&consciousness_key)
             .unwrap_or_else(|| Map::new(&env));
 
-        consciousness_map
-            .get(consciousness_id)
-            .unwrap_or_else(|| panic!("Consciousness not found"))
+        let cid = consciousness_id.clone();
+        let result = consciousness_map
+            .get(cid.clone())
+            .unwrap_or_else(|| panic!("Consciousness not found"));
+        result
     }
 
     /// Get all consciousnesses owned by an address
@@ -369,6 +378,6 @@ impl ConsciousnessContract {
             .get(&owner_key)
             .unwrap_or_else(|| Map::new(&env));
 
-        owner_map.get(owner).unwrap_or_else(|| Vec::new(&env))
+        owner_map.get(owner.clone()).unwrap_or_else(|| Vec::new(&env))
     }
 }

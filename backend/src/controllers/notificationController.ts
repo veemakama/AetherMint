@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { notificationService } from "../services/notificationService";
+const notificationService = require("../services/NotificationService").notificationService;
 import logger from "../utils/logger";
 
 export class NotificationController {

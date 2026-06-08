@@ -23,7 +23,7 @@ export class ElasticsearchService {
     try {
       const courseIndexExists = await this.client.indices.exists({ index: this.indices.courses });
       if (!courseIndexExists) {
-        await this.client.indices.create({
+        await (this.client as any).indices.create({
           index: this.indices.courses,
           body: {
             mappings: {
@@ -53,7 +53,7 @@ export class ElasticsearchService {
       
       const userIndexExists = await this.client.indices.exists({ index: this.indices.users });
       if (!userIndexExists) {
-        await this.client.indices.create({
+        await (this.client as any).indices.create({
           index: this.indices.users,
           body: {
             mappings: {
@@ -74,8 +74,7 @@ export class ElasticsearchService {
   }
 
   async indexCourse(course: any) {
-    try {
-      await this.client.index({
+    try {        await (this.client as any).index({
         index: this.indices.courses,
         id: course.id,
         body: {
@@ -129,7 +128,7 @@ export class ElasticsearchService {
       else if (filters.sortBy === 'price-low') sort = [{ price: 'asc' }];
       else if (filters.sortBy === 'price-high') sort = [{ price: 'desc' }];
 
-      const response = await this.client.search({
+      const response = await (this.client as any).search({
         index: this.indices.courses,
         body: {
           from,
@@ -158,7 +157,7 @@ export class ElasticsearchService {
 
   async getSuggestions(query: string): Promise<string[]> {
     try {
-      const response = await this.client.search({
+      const response = await (this.client as any).search({
         index: this.indices.courses,
         body: {
           suggest: {
@@ -173,7 +172,7 @@ export class ElasticsearchService {
         }
       });
       
-      const suggestions = response.suggest?.course_suggest?.[0]?.options.map((opt: any) => opt.text) || [];
+      const suggestions = (response as any).suggest?.course_suggest?.[0]?.options.map((opt: any) => opt.text) || [];
       return suggestions;
     } catch (error) {
       logger.error('Error getting suggestions from Elasticsearch', error);

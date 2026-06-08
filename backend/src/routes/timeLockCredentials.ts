@@ -35,7 +35,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { recipient, credentialHash, metadata, releaseTime } = req.body;
-      const issuer = req.user?.address; // From auth middleware
+      const issuer = (req.user as any)?.address; // From auth middleware
 
       if (!issuer) {
         return res.status(401).json({ 
@@ -82,7 +82,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { credentialId } = req.params;
-      const caller = req.user?.address;
+      const caller = (req.user as any)?.address;
 
       if (!caller) {
         return res.status(401).json({ 
@@ -143,7 +143,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { credentialIds } = req.body;
-      const caller = req.user?.address;
+      const caller = (req.user as any)?.address;
 
       if (!caller) {
         return res.status(401).json({ 
@@ -199,7 +199,7 @@ router.post(
     try {
       const { credentialId } = req.params;
       const { reason } = req.body;
-      const admin = req.user?.address;
+      const admin = (req.user as any)?.address;
 
       if (!admin) {
         return res.status(401).json({ 
@@ -262,7 +262,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const { credentialIds, releaseTimes } = req.body;
-      const creator = req.user?.address;
+      const creator = (req.user as any)?.address;
 
       if (!creator) {
         return res.status(401).json({ 

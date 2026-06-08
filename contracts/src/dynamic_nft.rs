@@ -47,7 +47,7 @@ pub struct DynamicNFT {
     pub owner: Address,
     pub creator: Address,
     pub base_uri: String,
-    pub current_level: u8,
+    pub current_level: u32,
     pub experience_points: u64,
     pub achievements: Vec<u64>, // Achievement IDs that contribute to evolution
     pub visual_traits: VisualTraits,
@@ -62,10 +62,10 @@ pub struct DynamicNFT {
 #[contracttype]
 #[derive(Clone)]
 pub struct VisualTraits {
-    pub background: u8,
-    pub border: u8,
-    pub emblem: u8,
-    pub glow_effect: u8,
+    pub background: u32,
+    pub border: u32,
+    pub emblem: u32,
+    pub glow_effect: u32,
     pub special_effects: Bytes,
     pub rarity_tier: RarityTier,
 }
@@ -251,7 +251,7 @@ pub fn store_enhanced_metadata(env: &Env, token_id: u64, metadata: EnhancedMetad
 }
 
 /// Get enhanced metadata for NFT
-pub fn get_enhanced_metadata(env: &Env, token_id: u64) -> Option<EnhancedMetadata> {
+pub fn get_enhanced_metadata(env: &Env, _token_id: u64) -> Option<EnhancedMetadata> {
     env.storage().persistent()
         .get(&soroban_sdk::Symbol::new(env, "enhanced"))
 }
@@ -281,7 +281,7 @@ pub fn mint_dynamic_nft(
         border: 0,
         emblem: 0,
         glow_effect: 0,
-        special_effects: Vec::new(env),
+        special_effects: Bytes::new(env),
         rarity_tier: RarityTier::Common,
     };
 
@@ -290,7 +290,7 @@ pub fn mint_dynamic_nft(
         owner: recipient.clone(),
         creator: creator.clone(),
         base_uri,
-        current_level: 1,
+        current_level: 1u32,
         experience_points: 0,
         achievements: Vec::new(env),
         visual_traits,
@@ -307,7 +307,7 @@ pub fn mint_dynamic_nft(
     // Update owner's token list
     let mut owner_tokens = get_owner_tokens(env, recipient.clone());
     owner_tokens.push_back(token_id);
-    env.storage().persistent().set(&DynamicNFTKey::OwnerTokens(recipient), &owner_tokens);
+    env.storage().persistent().set(&DynamicNFTKey::OwnerTokens(recipient.clone()), &owner_tokens);
 
     // Update token count
     env.storage().instance().set(&DynamicNFTKey::TokenCount, &token_id);
@@ -476,14 +476,26 @@ pub fn transfer_nft(env: &Env, from: Address, to: Address, token_id: u64) {
 
     // Remove from old owner's tokens
     let mut from_tokens = get_owner_tokens(env, from.clone());
-    let index = from_tokens.iter().position(|&id| id == token_id).unwrap_or_else(|| panic!("Token not found in owner's list"));
+    let mut found_idx: u32 = 0;
+    let mut found = false;
+    for i in 0..from_tokens.len() {
+        if from_tokens.get(i).unwrap_or(0) == token_id {
+            found_idx = i;
+            found = true;
+            break;
+        }
+    }
+    if !found {
+        panic!("Token not found in owner's list");
+    }
+    let index = found_idx;
     from_tokens.remove(index as u32);
-    env.storage().persistent().set(&DynamicNFTKey::OwnerTokens(from), &from_tokens);
+    env.storage().persistent().set(&DynamicNFTKey::OwnerTokens(from.clone()), &from_tokens);
 
     // Add to new owner's tokens
     let mut to_tokens = get_owner_tokens(env, to.clone());
     to_tokens.push_back(token_id);
-    env.storage().persistent().set(&DynamicNFTKey::OwnerTokens(to), &to_tokens);
+    env.storage().persistent().set(&DynamicNFTKey::OwnerTokens(to.clone()), &to_tokens);
 
     // Update NFT owner
     nft.owner = to.clone();
@@ -518,14 +530,14 @@ pub fn get_total_supply(env: &Env) -> u64 {
 }
 
 /// Calculate XP reward for an achievement
-fn calculate_achievement_xp(env: &Env, achievement_id: u64) -> u64 {
+fn calculate_achievement_xp(_env: &Env, achievement_id: u64) -> u64 {
     // This would typically fetch achievement data
     // For now, use a simple formula based on achievement ID
     100 + (achievement_id % 10) * 50
 }
 
 /// Check if NFT should evolve based on XP and level
-fn check_evolution_requirements(env: &Env, current_level: u8, xp: u64) -> Option<EvolutionStage> {
+fn check_evolution_requirements(_env: &Env, _current_level: u32, xp: u64) -> Option<EvolutionStage> {
     let xp_thresholds = [
         (0, EvolutionStage::Novice),
         (500, EvolutionStage::Apprentice),
@@ -545,7 +557,7 @@ fn check_evolution_requirements(env: &Env, current_level: u8, xp: u64) -> Option
 }
 
 /// Update visual traits based on evolution stage
-fn update_visual_traits(env: &Env, nft: &mut DynamicNFT, stage: &EvolutionStage) {
+fn update_visual_traits(_env: &Env, nft: &mut DynamicNFT, stage: &EvolutionStage) {
     match stage {
         EvolutionStage::Novice => {
             nft.visual_traits.rarity_tier = RarityTier::Common;
