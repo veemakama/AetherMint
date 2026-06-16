@@ -38,10 +38,11 @@ const nextConfig = {
     }
 
   // Performance optimizations
-    // Stub native-only modules that can't run in browser/build
+    // Stub native-only modules and broken packages that can't run in browser/build
     config.resolve.alias = {
       ...config.resolve.alias,
       brainflow: false,
+      '@creit.tech/stellar-wallets-kit': path.resolve(__dirname, 'src/stubs/stellar-wallets-kit.ts'),
     };
 
 

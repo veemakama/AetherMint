@@ -4,12 +4,12 @@
   "description": "Decentralized learning and credential verification platform powered by Stellar blockchain",
   "main": "index.js",
   "scripts": {
-    "install:all": "pnpm install && cd contracts && cargo build",
-    "build": "pnpm run build:contracts && pnpm run build:backend && pnpm run build:frontend",
+    "install:all": "npm install && cd contracts && cargo build",
+    "build": "npm run build:contracts && npm run build:backend && npm run build:frontend",
     "build:contracts": "cd contracts && cargo build --release",
     "build:backend": "cd backend && pnpm run build",
     "build:frontend": "cd frontend && pnpm run build",
-    "dev": "concurrently \"pnpm run dev:backend\" \"pnpm run dev:frontend\"",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && pnpm run dev",
     "dev:frontend": "cd frontend && pnpm run dev"
   },
@@ -60,7 +60,6 @@
   },
   "homepage": "https://github.com/akordavid373/aethermint-education#readme",
   "workspaces": [
-    "contracts",
     "backend",
     "frontend"
   ]

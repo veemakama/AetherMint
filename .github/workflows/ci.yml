@@ -24,17 +24,15 @@ jobs:
         
     - name: Install Soroban CLI
       run: |
-        cargo install soroban-cli --version 21.0.0 --locked
+        cargo install soroban-cli --version 20.0.0 --locked
         
-    - name: Test contracts
+    - name: Build and test contracts
       run: |
         cd contracts
         cargo test
-        
-    - name: Build contracts
-      run: |
-        cd contracts
         cargo build --release
+        rustup target add wasm32-unknown-unknown
+        cargo check --target wasm32-unknown-unknown --release
 
   test-backend:
     name: Test Backend
@@ -72,31 +70,22 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-        cache-dependency-path: backend/package-lock.json
         
     - name: Install dependencies
-      run: |
-        cd backend
-        npm ci
+      run: npm ci -w backend
         
     - name: Run linting
-      run: |
-        cd backend
-        npm run lint
+      run: npm run lint -w backend
         
     - name: Run tests
-      run: |
-        cd backend
-        npm run test:ci
+      run: npm run test:ci -w backend
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aethermint_test
         REDIS_URL: redis://localhost:6379
         JWT_SECRET: test_secret
         
     - name: Build backend
-      run: |
-        cd backend
-        npm run build
+      run: npm run build -w backend
 
   test-frontend:
     name: Test Frontend
@@ -110,27 +99,18 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
         
     - name: Install dependencies
-      run: |
-        cd frontend
-        npm ci
+      run: npm ci -w frontend
         
     - name: Run linting
-      run: |
-        cd frontend
-        npm run lint
+      run: npm run lint -w frontend
         
     - name: Run tests
-      run: |
-        cd frontend
-        npm run test:ci
+      run: npm run test:ci -w frontend
         
     - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
+      run: npm run build -w frontend
 
   security-scan:
     name: Security Scan
@@ -157,24 +137,43 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test-contracts, test-backend, test-frontend]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      contract_address: ${{ steps.deploy.outputs.contract_address }}
     
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
         
     - name: Install Rust and Soroban
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        cargo install soroban-cli --version 21.0.0 --locked
+        source $HOME/.cargo/env
+        cargo install soroban-cli --version 20.0.0 --locked
+        
+    - name: Configure Soroban identity
+      run: |
+        source $HOME/.cargo/env
+        soroban config identity generate admin --secret-key "$STELLAR_SECRET_KEY" --network testnet
+        soroban config network add testnet \
+          --rpc-url https://soroban-testnet.stellar.org \
+          --network-passphrase "Test SDF Network ; September 2015"
+        
+    - name: Build contracts for wasm
+      run: |
+        source $HOME/.cargo/env
+        rustup target add wasm32-unknown-unknown
+        cd contracts
+        cargo build --target wasm32-unknown-unknown --release
         
     - name: Deploy contracts to testnet
+      id: deploy
       run: |
+        source $HOME/.cargo/env
         cd contracts
-        npm run deploy:testnet
+        CONTRACT_ADDRESS=$(soroban contract deploy \
+          --wasm target/wasm32-unknown-unknown/release/aethermint_education_contracts.wasm \
+          --source admin \
+          --network testnet 2>&1 | tail -1)
+        echo "contract_address=$CONTRACT_ADDRESS" >> $GITHUB_OUTPUT
       env:
         STELLAR_SECRET_KEY: ${{ secrets.STELLAR_TESTNET_SECRET }}
         STELLAR_NETWORK: testnet
@@ -185,6 +184,30 @@ jobs:
     needs: [deploy-testnet]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aethermint_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
     steps:
     - uses: actions/checkout@v4
     
@@ -193,13 +216,14 @@ jobs:
       with:
         node-version: '18'
         
-    - name: Install dependencies
-      run: |
-        npm run install:all
+    - name: Install backend dependencies
+      run: npm ci -w backend
         
     - name: Run integration tests
-      run: |
-        npm run test:integration
+      run: npm run test:integration -w backend
       env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aethermint_test
+        REDIS_URL: redis://localhost:6379
+        JWT_SECRET: test_secret
         STELLAR_NETWORK: testnet
-        CONTRACT_ADDRESS: ${{ steps.deploy.outputs.contract_address }}
+        CONTRACT_ADDRESS: ${{ needs.deploy-testnet.outputs.contract_address }}
