@@ -8,7 +8,7 @@ import jwt from 'jsonwebtoken';
 import { UserRole } from '../models/User';
 
 export interface AuthenticatedRequest extends Request {
-  user: {
+  user?: {
     id: string;
     email: string;
     role: UserRole;
@@ -51,7 +51,7 @@ export const authMiddleware = async (
 };
 
 export const requireRole = (roles: UserRole[]) => {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
