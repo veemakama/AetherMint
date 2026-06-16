@@ -20,7 +20,7 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
+        toolchain: 1.75.0
         
     - name: Install Soroban CLI
       run: |
@@ -144,14 +144,16 @@ jobs:
     - uses: actions/checkout@v4
         
     - name: Install Rust and Soroban
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.75.0
+        
+    - name: Install Soroban CLI
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source $HOME/.cargo/env
         cargo install soroban-cli --version 20.0.0 --locked
         
     - name: Configure Soroban identity
       run: |
-        source $HOME/.cargo/env
         soroban config identity generate admin --secret-key "$STELLAR_SECRET_KEY" --network testnet
         soroban config network add testnet \
           --rpc-url https://soroban-testnet.stellar.org \
@@ -159,7 +161,6 @@ jobs:
         
     - name: Build contracts for wasm
       run: |
-        source $HOME/.cargo/env
         rustup target add wasm32-unknown-unknown
         cd contracts
         cargo build --target wasm32-unknown-unknown --release
@@ -167,7 +168,6 @@ jobs:
     - name: Deploy contracts to testnet
       id: deploy
       run: |
-        source $HOME/.cargo/env
         cd contracts
         CONTRACT_ADDRESS=$(soroban contract deploy \
           --wasm target/wasm32-unknown-unknown/release/aethermint_education_contracts.wasm \
