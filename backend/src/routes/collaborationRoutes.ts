@@ -1,7 +1,7 @@
 import express from 'express';
 import { CollaborationRoomController } from '../controllers/collaborationRoomController';
 
-const router = express.Router();
+const router: import('express').Router = express.Router();
 
 // Room management routes
 router.post('/rooms', CollaborationRoomController.createRoom);

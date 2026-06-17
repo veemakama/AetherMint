@@ -9,7 +9,7 @@ import { authenticate } from '../middleware/auth';
 import { handleValidationErrors } from '../middleware/validation';
 import { body, param, query } from 'express-validator';
 
-const router = Router();
+const router: Router = Router();
 
 // Apply authentication middleware to all routes
 router.use(authenticate);

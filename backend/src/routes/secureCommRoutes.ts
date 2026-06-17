@@ -4,7 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { handleValidationErrors } from '../middleware/validation';
 import { body, param } from 'express-validator';
 
-const router = express.Router();
+const router: import('express').Router = express.Router();
 
 /**
  * @route   POST /api/secure-comm/generate-keypair

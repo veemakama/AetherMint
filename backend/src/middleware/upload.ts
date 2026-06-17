@@ -5,7 +5,7 @@
 
 import multer from 'multer';
 import path from 'path';
-import { Request } from 'express';
+import { Request, RequestHandler } from 'express';
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -92,10 +92,10 @@ export const uploadMiddleware = multer({
 });
 
 // Single file upload middleware
-export const uploadSingle = (fieldName: string) => uploadMiddleware.single(fieldName);
+export const uploadSingle = (fieldName: string): RequestHandler => uploadMiddleware.single(fieldName);
 
 // Multiple files upload middleware
-export const uploadMultiple = (fieldName: string, maxCount: number) => 
+export const uploadMultiple = (fieldName: string, maxCount: number): RequestHandler => 
   uploadMiddleware.array(fieldName, maxCount);
 
 // Custom file upload middleware with additional validation

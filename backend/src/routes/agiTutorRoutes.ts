@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { AGITutorController } from '../controllers/agiTutorController';
 
-const router = Router();
+const router: Router = Router();
 const agiTutorController = new AGITutorController();
 
 /**

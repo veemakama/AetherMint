@@ -8,7 +8,7 @@ import * as smartWalletController from '../controllers/smartWalletController';
 import { authenticate } from '../middleware/auth';
 import { validateRequest } from '../middleware/validation';
 
-const router = express.Router();
+const router: import('express').Router = express.Router();
 const wrap = (fn: any) => (req: Request, res: Response) => fn(req, res);
 
 // Apply authentication middleware to all routes

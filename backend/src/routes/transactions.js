@@ -1,5 +1,4 @@
 const express = require('express');
-const Joi = require('joi');
 const Transaction = require('../models/Transaction');
 const transactionQueue = require('../services/transactionQueue');
 const transactionProcessor = require('../workers/transactionProcessor');
@@ -7,66 +6,27 @@ const transactionEvents = require('../events/transactionEvents');
 const stellarUtils = require('../utils/stellarUtils');
 const logger = require('../utils/logger');
 const { transactionLimiter } = require('../middleware/rateLimiter');
+const { validate } = require('../middleware/validate');
+const {
+  createTransactionSchema,
+  getTransactionsSchema,
+  getUserEventsQuerySchema,
+  transactionIdParamSchema,
+  userIdParamSchema,
+  accountIdParamSchema,
+  retryFailedSchema,
+  estimateFeeSchema,
+} = require('../middleware/schemas/transactionSchemas');
 
 const router = express.Router();
-
-// Validation schemas
-const createTransactionSchema = Joi.object({
-  userId: Joi.string().required(),
-  type: Joi.string().valid('payment', 'account_creation', 'trustline', 'claimable_balance', 'multisig', 'other').required(),
-  sourceAccount: Joi.string().required(),
-  destinationAccount: Joi.string().when('type', {
-    is: 'payment',
-    then: Joi.required(),
-    otherwise: Joi.optional()
-  }),
-  amount: Joi.string().when('type', {
-    is: 'payment',
-    then: Joi.required(),
-    otherwise: Joi.optional()
-  }),
-  asset: Joi.object({
-    code: Joi.string().required(),
-    issuer: Joi.string().when('code', {
-      is: 'XLM',
-      then: Joi.optional(),
-      otherwise: Joi.required()
-    })
-  }).when('type', {
-    is: 'payment',
-    then: Joi.optional(),
-    otherwise: Joi.optional()
-  }),
-  transactionXdr: Joi.string().optional(),
-  signedTransactionXdr: Joi.string().optional(),
-  priority: Joi.string().valid('high', 'medium', 'low').default('medium'),
-  maxRetries: Joi.number().integer().min(1).max(10).default(3),
-  metadata: Joi.object().default({})
-});
-
-const getTransactionsSchema = Joi.object({
-  userId: Joi.string().required(),
-  status: Joi.string().valid('pending', 'processing', 'submitted', 'success', 'failed', 'timeout').optional(),
-  type: Joi.string().valid('payment', 'account_creation', 'trustline', 'claimable_balance', 'multisig', 'other').optional(),
-  limit: Joi.number().integer().min(1).max(100).default(20),
-  offset: Joi.number().integer().min(0).default(0)
-});
 
 /**
  * POST /api/transactions
  * Create and queue a new transaction
  */
-router.post('/', transactionLimiter, async (req, res) => {
+router.post('/', transactionLimiter, validate({ body: createTransactionSchema }), async (req, res) => {
   try {
-    const { error, value } = createTransactionSchema.validate(req.body);
-    
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation error',
-        errors: error.details.map(detail => detail.message)
-      });
-    }
+    const value = req.body;
 
     // Validate Stellar addresses if provided
     if (!stellarUtils.validateAddress(value.sourceAccount)) {
@@ -116,17 +76,9 @@ router.post('/', transactionLimiter, async (req, res) => {
  * GET /api/transactions
  * Get transactions with optional filtering
  */
-router.get('/', async (req, res) => {
+router.get('/', validate({ query: getTransactionsSchema }), async (req, res) => {
   try {
-    const { error, value } = getTransactionsSchema.validate(req.query);
-    
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation error',
-        errors: error.details.map(detail => detail.message)
-      });
-    }
+    const value = req.query;
 
     const transactions = await Transaction.findByUser(value.userId, {
       status: value.status,
@@ -185,7 +137,7 @@ router.get('/', async (req, res) => {
  * GET /api/transactions/:transactionId
  * Get specific transaction details
  */
-router.get('/:transactionId', async (req, res) => {
+router.get('/:transactionId', validate(transactionIdParamSchema, 'params'), async (req, res) => {
   try {
     const { transactionId } = req.params;
 
@@ -239,7 +191,7 @@ router.get('/:transactionId', async (req, res) => {
  * GET /api/transactions/:transactionId/status
  * Get transaction status with additional details
  */
-router.get('/:transactionId/status', async (req, res) => {
+router.get('/:transactionId/status', validate(transactionIdParamSchema, 'params'), async (req, res) => {
   try {
     const { transactionId } = req.params;
 
@@ -297,7 +249,7 @@ router.get('/:transactionId/status', async (req, res) => {
  * POST /api/transactions/:transactionId/retry
  * Retry a failed transaction
  */
-router.post('/:transactionId/retry', async (req, res) => {
+router.post('/:transactionId/retry', validate(transactionIdParamSchema, 'params'), async (req, res) => {
   try {
     const { transactionId } = req.params;
 
@@ -366,7 +318,7 @@ router.post('/:transactionId/retry', async (req, res) => {
  * GET /api/transactions/queue/stats
  * Get queue statistics
  */
-router.get('/queue/stats', async (req, res) => {
+router.get('/queue/stats', validate({}), async (req, res) => {
   try {
     const queueStats = await transactionQueue.getQueueStats();
     const processorStats = transactionProcessor.getStats();
@@ -395,7 +347,7 @@ router.get('/queue/stats', async (req, res) => {
  * GET /api/transactions/user/:userId/pending
  * Get pending transactions for a user
  */
-router.get('/user/:userId/pending', async (req, res) => {
+router.get('/user/:userId/pending', validate(userIdParamSchema, 'params'), async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -429,7 +381,7 @@ router.get('/user/:userId/pending', async (req, res) => {
  * GET /api/transactions/user/:userId/events
  * Get recent events for a user
  */
-router.get('/user/:userId/events', async (req, res) => {
+router.get('/user/:userId/events', validate(getUserEventsQuerySchema), async (req, res) => {
   try {
     const { userId } = req.params;
     const { limit = 10 } = req.query;
@@ -458,7 +410,7 @@ router.get('/user/:userId/events', async (req, res) => {
  * POST /api/transactions/admin/clear-queue
  * Clear the transaction queue (admin only)
  */
-router.post('/admin/clear-queue', async (req, res) => {
+router.post('/admin/clear-queue', validate({}), async (req, res) => {
   try {
     // This should be protected by admin middleware in production
     await transactionQueue.clearQueue();
@@ -482,7 +434,7 @@ router.post('/admin/clear-queue', async (req, res) => {
  * POST /api/transactions/admin/retry-failed
  * Retry all failed transactions (admin only)
  */
-router.post('/admin/retry-failed', async (req, res) => {
+router.post('/admin/retry-failed', validate(retryFailedSchema, 'body'), async (req, res) => {
   try {
     // This should be protected by admin middleware in production
     const { limit = 10 } = req.body;
@@ -511,7 +463,7 @@ router.post('/admin/retry-failed', async (req, res) => {
  * GET /api/transactions/stellar/account/:accountId
  * Get Stellar account information
  */
-router.get('/stellar/account/:accountId', async (req, res) => {
+router.get('/stellar/account/:accountId', validate(accountIdParamSchema, 'params'), async (req, res) => {
   try {
     const { accountId } = req.params;
 
@@ -554,7 +506,7 @@ router.get('/stellar/account/:accountId', async (req, res) => {
  * GET /api/transactions/stellar/fee-stats
  * Get Stellar network fee statistics
  */
-router.get('/stellar/fee-stats', async (req, res) => {
+router.get('/stellar/fee-stats', validate({}), async (req, res) => {
   try {
     const feeStats = await stellarUtils.getFeeStats();
 
@@ -577,7 +529,7 @@ router.get('/stellar/fee-stats', async (req, res) => {
  * POST /api/transactions/stellar/estimate-fee
  * Estimate transaction fee
  */
-router.post('/stellar/estimate-fee', async (req, res) => {
+router.post('/stellar/estimate-fee', validate(estimateFeeSchema), async (req, res) => {
   try {
     const { priority = 'medium' } = req.body;
 
@@ -606,17 +558,9 @@ router.post('/stellar/estimate-fee', async (req, res) => {
  * POST /api/transactions/validate
  * Validate transaction data before submission
  */
-router.post('/validate', async (req, res) => {
+router.post('/validate', validate({ body: createTransactionSchema }), async (req, res) => {
   try {
-    const { error, value } = createTransactionSchema.validate(req.body);
-    
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation error',
-        errors: error.details.map(detail => detail.message)
-      });
-    }
+    const value = req.body;
 
     const validationResults = {
       sourceAccount: stellarUtils.validateAddress(value.sourceAccount),

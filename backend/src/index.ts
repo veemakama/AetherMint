@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Application } from 'express';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -85,7 +85,7 @@ const agiTutorRoutes = require('./routes/agiTutorRoutes');
 const analyticsRoutes = require('./routes/analytics');
 
 // Initialize Express app
-const app = express();
+const app: Application = express();
 const server = createServer(app);
 const websocketService = initWebsocketService(server);
 const collaborationService = initCollaborationService(server);

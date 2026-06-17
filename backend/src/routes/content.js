@@ -7,6 +7,14 @@ const { PERMISSIONS } = require('../utils/roles');
 const { ipfsAuth, optionalIpfsAuth, validateContentAccess, validateFileSize } = require('../middleware/ipfsAuth');
 const { createIpfsError } = require('../utils/ipfsUtils');
 const { ipfsLimiter } = require('../middleware/rateLimiter');
+const { validate } = require('../middleware/validate');
+const {
+  cidParamSchema,
+  getContentQuerySchema,
+  getMetadataQuerySchema,
+  uploadContentSchema,
+  uploadBatchContentSchema,
+} = require('../middleware/schemas/contentSchemas');
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -32,6 +40,7 @@ router.post('/upload',
   ipfsAuth('upload'),
   upload.single('file'),
   validateFileSize,
+  validate(uploadContentSchema),
   async (req, res) => {
     try {
       if (!req.file) {
@@ -95,6 +104,7 @@ router.post('/upload/batch',
   ipfsAuth('upload'),
   upload.array('files', 10),
   validateFileSize,
+  validate(uploadBatchContentSchema),
   async (req, res) => {
     try {
       if (!req.files || req.files.length === 0) {
@@ -160,6 +170,7 @@ router.post('/upload/batch',
 router.get('/:cid',
   requirePermission(PERMISSIONS.CONTENT_READ),
   validateContentAccess,
+  validate(getContentQuerySchema),
   async (req, res) => {
     try {
       const { cid } = req.params;
@@ -217,6 +228,7 @@ router.get('/:cid',
 router.get('/:cid/metadata',
   requirePermission(PERMISSIONS.CONTENT_READ),
   validateContentAccess,
+  validate(getMetadataQuerySchema),
   async (req, res) => {
     try {
       const { cid } = req.params;
@@ -264,6 +276,7 @@ router.get('/:cid/metadata',
 router.post('/:cid/pin',
   requirePermission(PERMISSIONS.COURSE_UPDATE), // Pinning requires course update permission
   validateContentAccess,
+  validate(cidParamSchema),
   async (req, res) => {
     try {
       const { cid } = req.params;
@@ -303,6 +316,7 @@ router.post('/:cid/pin',
 router.delete('/:cid/pin',
   requirePermission(PERMISSIONS.COURSE_UPDATE),
   validateContentAccess,
+  validate(cidParamSchema),
   async (req, res) => {
     try {
       const { cid } = req.params;
@@ -341,6 +355,7 @@ router.delete('/:cid/pin',
  */
 router.get('/node/info',
   requirePermission(PERMISSIONS.SYSTEM_MANAGE),
+  validate({}),
   async (req, res) => {
     try {
       const nodeInfo = await ipfsService.getNodeInfo();
@@ -376,6 +391,7 @@ router.get('/node/info',
  */
 router.get('/cache/stats',
   requirePermission(PERMISSIONS.ANALYTICS_READ),
+  validate({}),
   async (req, res) => {
     try {
       const cacheStats = ipfsService.getCacheStats();
@@ -402,6 +418,7 @@ router.get('/cache/stats',
  */
 router.delete('/cache',
   requirePermission(PERMISSIONS.SYSTEM_MANAGE),
+  validate({}),
   async (req, res) => {
     try {
       ipfsService.clearCache();
@@ -427,6 +444,7 @@ router.delete('/cache',
  * GET /api/content/health
  */
 router.get('/health',
+  validate({}),
   async (req, res) => {
     try {
       const nodeInfo = await ipfsService.getNodeInfo();

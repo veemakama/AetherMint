@@ -4,7 +4,7 @@ import { timeLockCredentialService } from '../services/timeLockCredentialService
 import { authenticateToken } from '../middleware/auth';
 import logger from '../utils/logger';
 
-const router = express.Router();
+const router: import('express').Router = express.Router();
 
 // Middleware to validate requests
 const validateRequest = (req: Request, res: Response, next: Function) => {
