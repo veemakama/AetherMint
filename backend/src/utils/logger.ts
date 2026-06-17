@@ -31,7 +31,14 @@ const sensitiveKeyPattern = /(password|passphrase|token|accessToken|refreshToken
 
 fs.mkdirSync(logDirectory, { recursive: true });
 
-const serializeError = (error: Error) => ({
+interface SerializedError {
+  name: string;
+  message: string;
+  stack: string | undefined;
+  cause: SerializedError | unknown;
+}
+
+const serializeError = (error: Error): SerializedError => ({
   name: error.name,
   message: error.message,
   stack: isDevelopment ? error.stack : undefined,
@@ -165,7 +172,7 @@ const baseLogger = winston.createLogger({
 });
 
 const createLoggerMethod = (level: LogLevel) => (message: unknown, ...meta: unknown[]) => {
-  baseLogger.log(buildLoggerEntry(level, message, meta));
+  baseLogger.log(buildLoggerEntry(level, message, meta) as winston.LogEntry);
 };
 
 const logger = {
@@ -175,7 +182,7 @@ const logger = {
   http: createLoggerMethod('http'),
   debug: createLoggerMethod('debug'),
   log: (level: LogLevel, message: unknown, ...meta: unknown[]) => {
-    baseLogger.log(buildLoggerEntry(level, message, meta));
+    baseLogger.log(buildLoggerEntry(level, message, meta) as winston.LogEntry);
   },
 };
 
