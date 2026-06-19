@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { performanceMonitor } from '@/lib/performance-monitor';
+// Importing env triggers Zod validation at startup — throws with a clear message if vars are missing/invalid.
+import '@/lib/env';
 
 const inter = Inter({ subsets: ['latin'] });
 

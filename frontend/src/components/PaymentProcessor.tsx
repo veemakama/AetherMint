@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { PaymentProcessorProps, PaymentDetails, TransactionReceipt } from '@/types/enrollment';
 import { stellarService, createEnrollmentMemo, formatStellarBalance } from '@/lib/stellar';
+import { env } from '@/lib/env';
 import { WalletsKit, MAINNET, TESTNET } from '@creit.tech/stellar-wallets-kit';
 import { 
   CreditCard, 
@@ -85,9 +86,8 @@ const PaymentProcessor: React.FC<PaymentProcessorProps> = ({
       const studentId = wallet.publicKey.slice(-8); // Last 8 characters as student ID
       const memo = createEnrollmentMemo(course.id, studentId);
       
-      // Platform's recipient address (this should come from environment/config)
-      const recipientAddress = process.env.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS || 
-        'GDUKMG4GD6VQY66JWH2D7SRPE2A4F4FJKM3KODD37MPEXGLB5JDO3M2M';
+      // Platform's recipient address (validated at startup via Zod schema)
+      const recipientAddress = env.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS;
 
       // Create transaction
       const transactionXDR = await stellarService.createPaymentTransaction(

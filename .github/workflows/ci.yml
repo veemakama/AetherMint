@@ -79,6 +79,8 @@ jobs:
 
       - name: Build frontend
         run: npm run build -w frontend
+        env:
+          NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS: ${{ secrets.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS || 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWNA' }}
 
   docker-frontend:
     name: Build & Push Frontend Docker Image
@@ -130,6 +132,7 @@ jobs:
             BUILD_DATE=${{ github.event.head_commit.timestamp || github.sha }}
             VCS_REF=${{ github.sha }}
             VERSION=${{ steps.meta.outputs.version }}
+            NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS=${{ secrets.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS || 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWNA' }}
 
   docker-backend:
     name: Build & Push Backend Docker Image

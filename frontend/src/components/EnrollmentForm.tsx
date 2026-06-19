@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { EnrollmentFormProps, EnrollmentStep, EnrollmentData, WalletInfo, TransactionReceipt } from '@/types/enrollment';
+import { env } from '@/lib/env';
 import WalletConnector from './WalletConnector';
 import PaymentProcessor from './PaymentProcessor';
 import { 
@@ -150,7 +151,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({
         courseId: course.id,
         amount: course.price,
         currency: course.currency,
-        recipientAddress: process.env.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS || '',
+        recipientAddress: env.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS,
         transactionHash: txHash,
         status: 'completed',
         timestamp: new Date().toISOString()
@@ -180,7 +181,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({
           courseId: course.id,
           amount: course.price,
           currency: course.currency,
-          recipientAddress: process.env.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS || '',
+          recipientAddress: env.NEXT_PUBLIC_STELLAR_RECEIVER_ADDRESS,
           transactionHash: transactionHash || '',
           status: 'completed',
           timestamp: new Date().toISOString()
