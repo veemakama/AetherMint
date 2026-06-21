@@ -19,6 +19,45 @@
 body {
   color: rgb(var(--foreground-rgb));
   background: white;
+  font-size: 16px;
+  line-height: 1.625;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img, video, canvas, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Touch target minimum 44x44px */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Full-screen modal on mobile */
+.modal-mobile-content {
+  background: white;
+  width: 100%;
+  height: 100%;
+}
+
+@media (min-width: 640px) {
+  .modal-mobile-content {
+    border-radius: 0.75rem;
+    width: auto;
+    height: auto;
+    max-width: 32rem;
+    max-height: 90vh;
+  }
 }
 
 .animate-pulse-slow {
