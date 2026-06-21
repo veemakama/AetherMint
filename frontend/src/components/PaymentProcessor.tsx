@@ -186,25 +186,25 @@ const PaymentProcessor: React.FC<PaymentProcessorProps> = ({
 
   if (paymentStatus === 'success' && transactionReceipt) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm" role="region" aria-label="Payment success confirmation" aria-live="polite">
+      <div className="bg-white border border-gray-200 rounded-lg p-5 sm:p-8 shadow-sm w-full" role="region" aria-label="Payment success confirmation" aria-live="polite">
         <div className="text-center">
-          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" aria-hidden="true" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
-          <p className="text-sm text-gray-600 mb-4">
+          <CheckCircle className="w-12 h-12 sm:w-16 sm:h-16 text-green-500 mx-auto mb-4" aria-hidden="true" />
+          <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Payment Successful!</h3>
+          <p className="text-sm sm:text-base text-gray-600 mb-6 px-2">
             Your enrollment in {course.title} has been confirmed.
           </p>
 
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4" aria-label="Transaction details">
-            <div className="text-left space-y-2">
-              <div className="flex justify-between text-sm">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 sm:p-6 mb-6" aria-label="Transaction details">
+            <div className="text-left space-y-3">
+              <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm">
                 <span className="text-gray-600">Transaction Hash:</span>
-                <span className="font-mono text-xs" aria-label={`Transaction hash: ${transactionReceipt.transactionHash}`}>{transactionReceipt.transactionHash.slice(0, 12)}...</span>
+                <span className="font-mono text-xs break-all" aria-label={`Transaction hash: ${transactionReceipt.transactionHash}`}>{transactionReceipt.transactionHash.slice(0, 16)}...</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm">
                 <span className="text-gray-600">Amount Paid:</span>
                 <span className="font-medium">{formatStellarBalance(transactionReceipt.amount || 0)}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm">
                 <span className="text-gray-600">Status:</span>
                 <span className="text-green-600 font-medium">Confirmed</span>
               </div>
@@ -213,7 +213,7 @@ const PaymentProcessor: React.FC<PaymentProcessorProps> = ({
 
           <button
             onClick={viewTransaction}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center space-x-2"
+            className="w-full min-h-[44px] bg-blue-600 text-white py-3 px-4 rounded-xl hover:bg-blue-700 transition-colors text-sm sm:text-base font-medium flex items-center justify-center space-x-2 active:scale-[0.98]"
             aria-label="View transaction on Stellar Explorer (opens in new tab)"
           >
             <ExternalLink className="w-4 h-4" aria-hidden="true" />
@@ -261,42 +261,42 @@ const PaymentProcessor: React.FC<PaymentProcessorProps> = ({
             className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
             aria-label="Refresh balance and fee estimate"
           >
-            <RefreshCw className={`w-4 h-4 ${isCheckingBalance ? 'animate-spin' : ''}`} aria-hidden="true" />
+            <RefreshCw className={`w-5 h-5 ${isCheckingBalance ? 'animate-spin' : ''}`} aria-hidden="true" />
           </button>
         )}
       </div>
 
       <div className="space-y-4 mb-6">
-        <div className="bg-gray-50 rounded-lg p-4" aria-label="Course information">
-          <h4 className="font-medium text-gray-900 mb-3">Course Information</h4>
+        <div className="bg-gray-50 rounded-lg p-4 sm:p-5" aria-label="Course information">
+          <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Course Information</h4>
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
+            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
               <span className="text-gray-600">Course:</span>
               <span className="font-medium">{course.title}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
               <span className="text-gray-600">Instructor:</span>
               <span className="font-medium">{course.instructor}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
               <span className="text-gray-600">Duration:</span>
               <span className="font-medium">{course.duration}</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-blue-50 rounded-lg p-4" aria-label="Payment breakdown">
-          <h4 className="font-medium text-gray-900 mb-3">Payment Breakdown</h4>
+        <div className="bg-blue-50 rounded-lg p-4 sm:p-5" aria-label="Payment breakdown">
+          <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Payment Breakdown</h4>
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
+            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
               <span className="text-gray-600">Course Price:</span>
               <span className="font-medium">{formatStellarBalance(course.price)}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
               <span className="text-gray-600">Network Fee:</span>
               <span className="font-medium">{formatStellarBalance(estimatedFee / 10000000)}</span>
             </div>
-            <div className="border-t pt-2 flex justify-between font-medium">
+            <div className="border-t pt-2 flex flex-col xs:flex-row xs:justify-between gap-1 font-medium text-sm sm:text-base">
               <span>Total:</span>
               <span>{formatStellarBalance(course.price + (estimatedFee / 10000000))}</span>
             </div>
@@ -304,18 +304,18 @@ const PaymentProcessor: React.FC<PaymentProcessorProps> = ({
         </div>
 
         {wallet && (
-          <div className="bg-yellow-50 rounded-lg p-4" aria-label="Wallet information">
-            <h4 className="font-medium text-gray-900 mb-3">Wallet Information</h4>
+          <div className="bg-yellow-50 rounded-lg p-4 sm:p-5" aria-label="Wallet information">
+            <h4 className="font-medium text-gray-900 mb-3 text-sm sm:text-base">Wallet Information</h4>
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
                 <span className="text-gray-600">Connected Wallet:</span>
                 <span className="font-medium">{wallet.walletType}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
                 <span className="text-gray-600">Network:</span>
                 <span className="font-medium capitalize">{wallet.network}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex flex-col xs:flex-row xs:justify-between gap-1 text-sm sm:text-base">
                 <span className="text-gray-600">Available Balance:</span>
                 <span className={`font-medium ${sufficientBalance === false ? 'text-red-600' : 'text-green-600'}`}>
                   {formatStellarBalance(wallet.balance || 0)}
@@ -327,26 +327,26 @@ const PaymentProcessor: React.FC<PaymentProcessorProps> = ({
       </div>
 
       {error && (
-        <div className="mb-4 flex items-center space-x-2 text-red-600 bg-red-50 p-3 rounded-lg" role="alert" aria-live="assertive">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+        <div className="mb-4 flex items-start space-x-2 text-red-600 bg-red-50 p-3 sm:p-4 rounded-lg" role="alert" aria-live="assertive">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
           <span className="text-sm">{error}</span>
         </div>
       )}
 
       {sufficientBalance === false && (
-        <div className="mb-4 flex items-center space-x-2 text-yellow-600 bg-yellow-50 p-3 rounded-lg" role="alert" aria-live="assertive">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+        <div className="mb-4 flex items-start space-x-2 text-yellow-600 bg-yellow-50 p-3 sm:p-4 rounded-lg" role="alert" aria-live="assertive">
+          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
           <span className="text-sm">
             Insufficient balance. Please add at least {formatStellarBalance(course.price - (wallet?.balance || 0))} to your wallet.
           </span>
         </div>
       )}
 
-      <div className="flex space-x-3">
+      <div className="flex flex-col xs:flex-row gap-3">
         {paymentStatus === 'failed' && (
           <button
             onClick={retryPayment}
-            className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+            className="w-full xs:flex-1 min-h-[44px] bg-gray-600 text-white py-3 px-4 rounded-xl hover:bg-gray-700 transition-colors text-sm sm:text-base font-medium active:scale-[0.98]"
             aria-label="Retry payment"
           >
             Try Again
@@ -362,7 +362,7 @@ const PaymentProcessor: React.FC<PaymentProcessorProps> = ({
             sufficientBalance === false ||
             isCheckingBalance
           }
-          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          className="w-full xs:flex-1 min-h-[44px] bg-blue-600 text-white py-3 px-4 rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm sm:text-base font-medium active:scale-[0.98]"
           aria-label={paymentStatus === 'processing' || paymentStatus === 'pending' ? 'Processing payment' : `Pay ${formatStellarBalance(course.price)}`}
         >
           {paymentStatus === 'processing' || paymentStatus === 'pending' ? (

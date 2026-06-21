@@ -177,11 +177,11 @@ const TestEnrollmentPage: React.FC = () => {
   const testInProgress = isRunning && testResults.length === 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Enrollment Flow Test</h1>
-          <p className="text-gray-600 mb-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8 md:py-12">
+      <div className="max-w-4xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Enrollment Flow Test</h1>
+          <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
             Test the complete enrollment functionality including API endpoints, components, and utilities.
           </p>
 
@@ -238,7 +238,7 @@ const TestEnrollmentPage: React.FC = () => {
             </div>
           )}
 
-          <div className="flex space-x-4 mb-8">
+          <div className="flex flex-col xs:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8">
             <button
               onClick={testEnrollmentFlow}
               disabled={isRunning}
@@ -256,7 +256,7 @@ const TestEnrollmentPage: React.FC = () => {
             </button>
             <button
               onClick={navigateToEnrollment}
-              className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              className="w-full xs:flex-1 min-h-[44px] bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 transition-colors font-medium text-sm sm:text-base active:scale-[0.98]"
             >
               Test Live Enrollment
             </button>
@@ -298,9 +298,9 @@ const TestEnrollmentPage: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h3 className="font-semibold text-yellow-900 mb-2">Important Notes</h3>
-            <ul className="text-sm text-yellow-800 space-y-1">
+          <div className="mt-6 sm:mt-8 bg-yellow-50 border border-yellow-200 rounded-xl sm:rounded-lg p-4 sm:p-5">
+            <h3 className="font-semibold text-yellow-900 mb-2 text-sm sm:text-base">Important Notes</h3>
+            <ul className="text-xs sm:text-sm text-yellow-800 space-y-1.5">
               <li>• Tests use mock data and may not reflect real blockchain interactions</li>
               <li>• Stellar transaction validation requires a valid transaction hash</li>
               <li>• Live enrollment requires a connected wallet with sufficient balance</li>
