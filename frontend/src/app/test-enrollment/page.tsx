@@ -174,18 +174,18 @@ const TestEnrollmentPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Enrollment Flow Test</h1>
-          <p className="text-gray-600 mb-8">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8 md:py-12">
+      <div className="max-w-4xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 md:p-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Enrollment Flow Test</h1>
+          <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
             Test the complete enrollment functionality including API endpoints, components, and utilities.
           </p>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            <div className="bg-blue-50 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-blue-900 mb-4">Test Data</h2>
-              <div className="space-y-2 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 md:gap-8 mb-6 sm:mb-8">
+            <div className="bg-blue-50 rounded-xl sm:rounded-lg p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-blue-900 mb-3 sm:mb-4">Test Data</h2>
+              <div className="space-y-2 text-xs sm:text-sm break-all">
                 <div>
                   <span className="font-medium">Course ID:</span> {mockCourse.id}
                 </div>
@@ -196,7 +196,7 @@ const TestEnrollmentPage: React.FC = () => {
                   <span className="font-medium">Price:</span> {mockCourse.price} {mockCourse.currency}
                 </div>
                 <div>
-                  <span className="font-medium">Wallet Address:</span> {mockWallet.publicKey.slice(0, 20)}...
+                  <span className="font-medium">Wallet Address:</span> {mockWallet.publicKey.slice(0, 16)}...
                 </div>
                 <div>
                   <span className="font-medium">Network:</span> {mockWallet.network}
@@ -204,9 +204,9 @@ const TestEnrollmentPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-green-50 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-green-900 mb-4">Test Coverage</h2>
-              <ul className="space-y-1 text-sm text-green-800">
+            <div className="bg-green-50 rounded-xl sm:rounded-lg p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-green-900 mb-3 sm:mb-4">Test Coverage</h2>
+              <ul className="space-y-1.5 text-xs sm:text-sm text-green-800">
                 <li>• Course data validation</li>
                 <li>• Wallet connection validation</li>
                 <li>• API POST endpoint</li>
@@ -217,30 +217,30 @@ const TestEnrollmentPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex space-x-4 mb-8">
+          <div className="flex flex-col xs:flex-row gap-3 sm:gap-4 mb-6 sm:mb-8">
             <button
               onClick={testEnrollmentFlow}
               disabled={isRunning}
-              className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+              className="w-full xs:flex-1 min-h-[44px] bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-sm sm:text-base active:scale-[0.98]"
             >
               {isRunning ? 'Running Tests...' : 'Run Tests'}
             </button>
             <button
               onClick={navigateToEnrollment}
-              className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium"
+              className="w-full xs:flex-1 min-h-[44px] bg-green-600 text-white px-6 py-3 rounded-xl hover:bg-green-700 transition-colors font-medium text-sm sm:text-base active:scale-[0.98]"
             >
               Test Live Enrollment
             </button>
           </div>
 
           {testResults.length > 0 && (
-            <div className="bg-gray-50 rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Test Results</h2>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="bg-gray-50 rounded-xl sm:rounded-lg p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Test Results</h2>
+              <div className="space-y-2 max-h-72 sm:max-h-96 overflow-y-auto">
                 {testResults.map((result, index) => (
                   <div
                     key={index}
-                    className={`text-sm font-mono p-2 rounded ${
+                    className={`text-xs sm:text-sm font-mono p-2 sm:p-3 rounded-lg ${
                       result.includes('✅') ? 'bg-green-100 text-green-800' :
                       result.includes('❌') ? 'bg-red-100 text-red-800' :
                       'bg-gray-100 text-gray-800'
@@ -253,9 +253,9 @@ const TestEnrollmentPage: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-8 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <h3 className="font-semibold text-yellow-900 mb-2">Important Notes</h3>
-            <ul className="text-sm text-yellow-800 space-y-1">
+          <div className="mt-6 sm:mt-8 bg-yellow-50 border border-yellow-200 rounded-xl sm:rounded-lg p-4 sm:p-5">
+            <h3 className="font-semibold text-yellow-900 mb-2 text-sm sm:text-base">Important Notes</h3>
+            <ul className="text-xs sm:text-sm text-yellow-800 space-y-1.5">
               <li>• Tests use mock data and may not reflect real blockchain interactions</li>
               <li>• Stellar transaction validation requires a valid transaction hash</li>
               <li>• Live enrollment requires a connected wallet with sufficient balance</li>
