@@ -1,72 +1,106 @@
 /**
  * AetherMint Service Worker
- * --------------------------------
- * Implements a Workbox-based caching strategy with:
- *   • CacheFirst for static assets (JS, CSS, images, fonts) – long-lived, immutable.
- *   • StaleWhileRevalidate for read-only API content (courses, lessons,
- *     progress) so previously viewed courses are available offline.
- *   • NetworkFirst with a 3s timeout for /api GET requests – fresh by default,
- *     cache-only fallback when the network is slow or unavailable.
- *   • NetworkOnly + BackgroundSync (24h retention) for mutating API calls so
- *     offline progress/quiz submissions replay automatically.
- *   • StaleWhileRevalidate for navigations so subsequent loads are instant
- *     while a fresh copy is fetched in the background.
- *   • An explicit offline fallback page (`/offline`) served from Workbox's
- *     `setCatchHandler` so the app still boots when fully disconnected.
- *   • A `skipWaiting` update flow driven by a `SKIP_WAITING` message from the
- *     client (no automatic activation on install) to avoid breaking
- *     in-flight requests.
+ * -----------------------------------------------------------------------------
+ * Owns the runtime caching layer for the AetherMint PWA.
  *
- * Source for the Workbox runtime: Google's CDN, pinned to v6.4.1.
+ * Strategies (in registration order — most-specific to most-generic):
+ *   1. POST/PUT/PATCH/DELETE /api/*           → NetworkOnly + BackgroundSync
+ *   2. GET /api/(courses|lessons|progress|analytics)/* → StaleWhileRevalidate
+ *   3. GET /api/*                              → NetworkFirst (3 s timeout)
+ *   4. Scripts/Styles/Images/Fonts/Manifest    → CacheFirst (30 d)
+ *   5. /_next/static/*                         → CacheFirst (1 y, immutable)
+ *   6. Navigations (HTML)                      → StaleWhileRevalidate (7 d)
+ *   7. setCatchHandler → /offline shell for docs & prefetches,
+ *                        503 JSON sentinel for `/_next/data/*`.
+ *
+ * Update flow:
+ *   • `skipWaiting()` is NEVER invoked automatically. The page must post
+ *     `{ type: 'SKIP_WAITING' }` to the waiting worker so in-flight requests
+ *     are not torn down mid-flight.
+ *   • `clients.claim()` runs unconditionally on activate so the first
+ *     interaction after a refresh sees the new version.
+ *
+ * Workbox runtime is loaded from Google's CDN and pinned to v6.4.1 so the
+ * code below compiles against a known API surface.
  */
 
-importScripts('https://storage.googleapis.com/workbox-cdn/releases/6.4.1/workbox-sw.js');
+importScripts(
+  'https://storage.googleapis.com/workbox-cdn/releases/6.4.1/workbox-sw.js'
+);
 
-const SW_VERSION = 'v3';
-const IS_DEV = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+/** Current cache key suffix. Bumped to evict stale caches during activate. */
+const SW_VERSION = 'v4';
 
-// Workbox sets `workbox` on `self` after the CDN script is evaluated.
-// Anything that uses it must be guarded so we never throw in older browsers.
+const isLocalHost =
+  self.location.hostname === 'localhost' ||
+  self.location.hostname === '127.0.0.1';
+
+/**
+ * Only register the routes & set up state management when Workbox actually
+ * loaded. Older browsers / corporate proxies will leave `self.workbox`
+ * undefined and we degrade to a passthrough service worker.
+ */
 if (self.workbox) {
-  const { routing, strategies, backgroundSync, expiration, precaching } = self.workbox;
+  const { routing, strategies, backgroundSync, expiration, precaching } =
+    self.workbox;
 
-  // Avoid polluting caches during development.
-  if (IS_DEV) {
-    console.log('[AetherMint SW] Development build detected – caching disabled.');
+  // -------------------------------------------------------------------------
+  // Dev / live toggle.
+  // -------------------------------------------------------------------------
+  // Skip *all* caching in dev so HMR stays snappy and stale chunks never
+  // confuse the developer. Production builds log a single banner so we can
+  // confirm the SW activated in DevTools → Application → Service Workers.
+  if (isLocalHost) {
+    // eslint-disable-next-line no-console
+    console.info(
+      '[AetherMint SW] local development detected — caching disabled.'
+    );
   } else {
-    console.log(`[AetherMint SW] AetherMint service worker ${SW_VERSION} activating.`);
+    /* eslint-disable no-console */
+    console.info(`[AetherMint SW] AetherMint SW ${SW_VERSION} activating.`);
+    /* eslint-enable no-console */
 
-    // Use the documented Workbox debug switch only when explicitly enabled.
+    // Opt-in verbose Workbox logging via querystring, useful for debugging.
     if (self.location.search.includes('workbox-debug')) {
       self.workbox.setConfig({ debug: true });
     }
 
-    // -----------------------------------------------------------------
-    // Precache — versioned app shell + offline fallback page.
-    // -----------------------------------------------------------------
-    // The `/offline` URL must correspond to a real navigable route on the
-    // server (see frontend/src/pages/_offline.tsx). Workbox will populate
-    // the cache during install so it is available even before the user
-    // has ever visited the page.
+    // -------------------------------------------------------------------------
+    // Precache the offline fallback shell.
+    // -------------------------------------------------------------------------
+    // Must correspond to a real navigable route — see
+    // `frontend/src/pages/_offline.tsx`. Revision is bumped with SW_VERSION so
+    // a deploy automatically replaces the precached shell.
     precaching.precacheAndRoute([
       { url: '/offline', revision: SW_VERSION },
     ]);
 
-    // -----------------------------------------------------------------
-    // Background Sync — queue mutating requests when offline.
-    // -----------------------------------------------------------------
-    const bgSyncPlugin = new backgroundSync.BackgroundSyncPlugin('aethermint-offline-queue', {
-      maxRetentionTime: 24 * 60, // Retry for up to 24 hours (Workbox uses minutes here).
-      onSync: async ({ queue }) => {
-        try {
-          console.log('[AetherMint SW] Replaying queued offline requests…');
-          await queue.replayRequests();
-        } catch (error) {
-          console.error('[AetherMint SW] Background sync replay failed:', error);
-        }
-      },
-    });
+    // -------------------------------------------------------------------------
+    // Background-sync plugin for mutating requests.
+    // -------------------------------------------------------------------------
+    const bgSyncPlugin = new backgroundSync.BackgroundSyncPlugin(
+      'aethermint-offline-queue',
+      {
+        // Workbox uses minutes here; 24h retries ensure mutating calls
+        // (progress, enrollment, payments) eventually settle.
+        maxRetentionTime: 24 * 60,
+        onSync: async ({ queue }) => {
+          try {
+            await queue.replayRequests();
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error(
+              '[AetherMint SW] background-sync replay failed:',
+              error
+            );
+          }
+        },
+      }
+    );
 
+    // -------------------------------------------------------------------------
+    // 1. Mutating API requests → queue + replay.
+    // -------------------------------------------------------------------------
     routing.registerRoute(
       ({ url, request }) =>
         url.pathname.startsWith('/api/') &&
@@ -75,12 +109,12 @@ if (self.workbox) {
       'POST'
     );
 
-    // -----------------------------------------------------------------
-    // Read-only API content (courses/lessons/progress) — stale-while-
-    // revalidate so previously viewed pages remain available offline.
-    // IMPORTANT: registered BEFORE the broader /api NetworkFirst route so
-    // Workbox matches these first.
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // 2. Read-only course/lesson/progress/analytics payload → SWR.
+    // -------------------------------------------------------------------------
+    // Registered BEFORE the broader /api GET handler so Workbox matches the
+    // narrow pattern first. This is the entry that satisfies the acceptance
+    // criterion: "Previously viewed courses available offline".
     const READ_ONLY_API_PATTERN = /^\/api\/(courses|lessons|progress|analytics)(\/|$|\?)/;
 
     routing.registerRoute(
@@ -91,35 +125,37 @@ if (self.workbox) {
         plugins: [
           new expiration.ExpirationPlugin({
             maxEntries: 200,
-            maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+            maxAgeSeconds: 7 * 24 * 60 * 60,
             purgeOnQuotaError: true,
           }),
         ],
       })
     );
 
-    // -----------------------------------------------------------------
-    // Other /api GET requests — network first, fall back to cache after
-    // 3s timeout so user/auth/profile endpoints stay fresh.
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // 3. All other GET /api/* → NetworkFirst with 3 s timeout.
+    // -------------------------------------------------------------------------
+    // User/profile/auth endpoints should stay as fresh as possible, but we
+    // still degrade gracefully to cache so the app stays interactive offline.
     routing.registerRoute(
-      ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
+      ({ url, request }) =>
+        url.pathname.startsWith('/api/') && request.method === 'GET',
       new strategies.NetworkFirst({
         cacheName: `aethermint-api-${SW_VERSION}`,
         networkTimeoutSeconds: 3,
         plugins: [
           new expiration.ExpirationPlugin({
             maxEntries: 60,
-            maxAgeSeconds: 24 * 60 * 60, // 1 day
+            maxAgeSeconds: 24 * 60 * 60,
             purgeOnQuotaError: true,
           }),
         ],
       })
     );
 
-    // -----------------------------------------------------------------
-    // Static assets — cache first with a long expiration.
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // 4. Static assets (images, scripts, styles, fonts, manifest).
+    // -------------------------------------------------------------------------
     routing.registerRoute(
       ({ request }) =>
         request.destination === 'image' ||
@@ -132,16 +168,16 @@ if (self.workbox) {
         plugins: [
           new expiration.ExpirationPlugin({
             maxEntries: 200,
-            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+            maxAgeSeconds: 30 * 24 * 60 * 60,
             purgeOnQuotaError: true,
           }),
         ],
       })
     );
 
-    // -----------------------------------------------------------------
-    // Next.js static build artefacts — immutable, cache first.
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // 5. Next.js static chunks — already fingerprinted, cache-first forever.
+    // -------------------------------------------------------------------------
     routing.registerRoute(
       ({ url }) => url.pathname.startsWith('/_next/static/'),
       new strategies.CacheFirst({
@@ -149,17 +185,16 @@ if (self.workbox) {
         plugins: [
           new expiration.ExpirationPlugin({
             maxEntries: 200,
-            maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
+            maxAgeSeconds: 365 * 24 * 60 * 60,
             purgeOnQuotaError: true,
           }),
         ],
       })
     );
 
-    // -----------------------------------------------------------------
-    // Navigations (HTML pages) — stale-while-revalidate so the app loads
-    // instantly while a fresh copy is fetched in the background.
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // 6. Navigations (top-level HTML).
+    // -------------------------------------------------------------------------
     routing.registerRoute(
       ({ request }) => request.mode === 'navigate',
       new strategies.StaleWhileRevalidate({
@@ -174,60 +209,63 @@ if (self.workbox) {
       })
     );
 
-    // -----------------------------------------------------------------
-    // Offline fallback for navigation + same-origin asset requests when
-    // the network AND the SW cache both fail.
-    // -----------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // 7. Catch handler — final fallback when EVERYTHING above misses.
+    // -------------------------------------------------------------------------
     const OFFLINE_FALLBACK_URL = '/offline';
 
     self.workbox.routing.setCatchHandler(async ({ event, request }) => {
-      // Always respond to 3rd-party requests with a generic error so we
-      // don't accidentally cache cross-origin responses.
-      if (request.url.startsWith(self.location.origin) === false) {
+      // Never cache or proxy cross-origin errors — just return a generic
+      // network error so the browser handles it normally.
+      if (!request.url.startsWith(self.location.origin)) {
         return Response.error();
       }
 
       const accept = request.headers.get('accept') || '';
-      const url = new URL(request.url);
+      const { pathname } = new URL(request.url);
 
-      // 1. Document / navigation requests return the precached shell.
-      if (event.request.destination === 'document' || request.mode === 'navigate') {
+      // 7a. Document / navigation → precached /offline shell.
+      if (
+        event.request.destination === 'document' ||
+        request.mode === 'navigate'
+      ) {
         const cached = await caches.match(OFFLINE_FALLBACK_URL);
-        if (cached) {
-          return cached;
-        }
+        if (cached) return cached;
         return Response.error();
       }
 
-      // 2. Next.js pages router fetches page-data JSON
-      //    (`/_next/data/<buildId>/<page>.json`). Never return an HTML
-      //    shell for these — the client will `res.json()` and crash if
-      //    Content-Type isn't application/json. Return a 503 sentinel
-      //    soReact Query / SWR can short-circuit cleanly.
+      // 7b. Next.js pages-router payload (`/_next/data/<buildId>/<page>.json`)
+      //     or any explicit JSON accept header.
+      //
+      // Returning the HTML shell here would crash any caller that does
+      // `await res.json()` — issue a 503 with a JSON body so data-fetching
+      // helpers (React Query, SWR, fetchJson) short-circuit cleanly.
       if (
-        url.pathname.startsWith('/_next/data/') ||
+        pathname.startsWith('/_next/data/') ||
         accept.includes('application/json')
       ) {
         const cached = await caches.match(event.request);
-        if (cached) {
-          return cached;
-        }
+        if (cached) return cached;
         return new Response(
-          JSON.stringify({ offline: true, message: 'Network unavailable' }),
-          { status: 503, headers: { 'Content-Type': 'application/json' } }
+          JSON.stringify({
+            offline: true,
+            message: 'Network unavailable',
+          }),
+          {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'application/json' },
+          }
         );
       }
 
-      // 3. HTML responses (e.g. prefetch hints) — serve the shell.
+      // 7c. HTML prefetch hints — keep layout intact with the shell.
       if (accept.includes('text/html')) {
         const cached = await caches.match(OFFLINE_FALLBACK_URL);
-        if (cached) {
-          return cached;
-        }
+        if (cached) return cached;
       }
 
-      // 4. Images when offline — return an empty pixel so the page keeps
-      //    a consistent layout. Most icons are already in the static cache.
+      // 7d. Image requests — fail soft; most icons are already precached.
       if (request.destination === 'image') {
         return new Response('', { status: 504 });
       }
@@ -235,103 +273,109 @@ if (self.workbox) {
       return Response.error();
     });
   }
-} else {
-  console.log('[AetherMint SW] Workbox failed to load – falling back to passthrough.');
-}
 
-// -----------------------------------------------------------------
-// Update flow — the page calls postMessage({ type: 'SKIP_WAITING' }) to
-// activate a new SW without surprising active tabs.
-// -----------------------------------------------------------------
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    console.log('[AetherMint SW] SKIP_WAITING requested – activating new version.');
-    self.skipWaiting();
-  }
-});
+  // ---------------------------------------------------------------------------
+  // Activate hook — evict predecessor caches & claim clients.
+  // ---------------------------------------------------------------------------
+  self.addEventListener('activate', (event) => {
+    event.waitUntil(
+      (async () => {
+        const cacheNames = await caches.keys();
+        await Promise.all(
+          cacheNames
+            .filter(
+              (name) =>
+                name.startsWith('aethermint-') &&
+                !name.endsWith(`-${SW_VERSION}`)
+            )
+            .map((name) => {
+              // eslint-disable-next-line no-console
+              console.info('[AetherMint SW] deleting outdated cache:', name);
+              return caches.delete(name);
+            })
+        );
 
-// After activation, take control of all open clients immediately so users
-// see the new version on the next interaction.
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    (async () => {
-      // Clean up caches from previous SW versions to prevent stale assets
-      // from accumulating.
-      const cacheNames = await caches.keys();
-      await Promise.all(
-        cacheNames
-          .filter((name) => name.startsWith('aethermint-') && !name.endsWith(SW_VERSION))
-          .map((name) => {
-            console.log('[AetherMint SW] Deleting outdated cache:', name);
-            return caches.delete(name);
-          })
-      );
-
-      if (self.clients && self.clients.claim) {
-        await self.clients.claim();
-      }
-    })()
-  );
-});
-
-// -----------------------------------------------------------------
-// Background sync trigger from IndexedDB writes (see useOfflineSync).
-// -----------------------------------------------------------------
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-progress' || event.tag === 'background-sync') {
-    console.log('[AetherMint SW] Custom background sync triggered:', event.tag);
-    // Workbox handles queued network requests automatically via the
-    // BackgroundSyncPlugin registered above. Hooks for custom IndexedDB
-    // replay can be added here.
-  }
-});
-
-// -----------------------------------------------------------------
-// Push notifications.
-// -----------------------------------------------------------------
-self.addEventListener('push', (event) => {
-  if (!event.data) {
-    return;
-  }
-
-  let payload = {};
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: 'AetherMint', body: event.data.text() };
-  }
-
-  const options = {
-    body: payload.body || 'You have a new notification from AetherMint',
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/badge-72x72.png',
-    data: payload,
-    vibrate: [200, 100, 200],
-    actions: [
-      { action: 'open', title: 'Open App' },
-      { action: 'dismiss', title: 'Dismiss' },
-    ],
-  };
-
-  event.waitUntil(self.registration.showNotification(payload.title || 'AetherMint', options));
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  if (event.action === 'dismiss') {
-    return;
-  }
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        if ('focus' in client) {
-          return client.focus();
+        if (self.clients && typeof self.clients.claim === 'function') {
+          await self.clients.claim();
         }
-      }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow('/');
-      }
-      return null;
-    })
+      })()
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // User-prompted update flow.
+  // ---------------------------------------------------------------------------
+  self.addEventListener('message', (event) => {
+    if (event && event.data && event.data.type === 'SKIP_WAITING') {
+      // eslint-disable-next-line no-console
+      console.info('[AetherMint SW] SKIP_WAITING — activating new version.');
+      self.skipWaiting();
+    }
+
+  // ---------------------------------------------------------------------------
+  // IndexedDB-driven background sync trigger.
+  // ---------------------------------------------------------------------------
+  self.addEventListener('sync', (event) => {
+    if (event.tag === 'sync-progress' || event.tag === 'background-sync') {
+      // The Workbox BackgroundSyncPlugin transparently handles queued
+      // network requests above. Hooks for custom IndexedDB replay can be
+      // added here without breaking the plugin contract.
+      // eslint-disable-next-line no-console
+      console.info('[AetherMint SW] sync event fired:', event.tag);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Push notifications.
+  // ---------------------------------------------------------------------------
+  self.addEventListener('push', (event) => {
+    if (!event.data) return;
+
+    let payload: { title?: string; body?: string } = {};
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { title: 'AetherMint', body: event.data.text() };
+    }
+
+    const options: NotificationOptions = {
+      body: payload.body || 'You have a new notification from AetherMint',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/badge-72x72.png',
+      data: payload,
+      vibrate: [200, 100, 200],
+      actions: [
+        { action: 'open', title: 'Open App' },
+        { action: 'dismiss', title: 'Dismiss' },
+      ],
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(
+        payload.title || 'AetherMint',
+        options
+      )
+    );
+  });
+
+  self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    if (event.action === 'dismiss') return;
+    event.waitUntil(
+      self.clients
+        .matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clientList) => {
+          for (const client of clientList) {
+            if ('focus' in client) return client.focus();
+          }
+          if (self.clients.openWindow) return self.clients.openWindow('/');
+          return null;
+        })
+    );
+  });
+} else {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[AetherMint SW] Workbox failed to load — falling back to passthrough.'
   );
-});
+}

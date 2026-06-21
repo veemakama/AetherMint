@@ -11,69 +11,70 @@ type Listener = (event: Event) => void;
 
 interface FakeWorker {
   state: ServiceWorkerState;
-  listeners: Record<string, Listener[]>;
   postMessage: jest.Mock;
 }
 
-function makeFakeWorker(initialState: ServiceWorkerState = 'installed'): FakeWorker {
-  return {
-    state: initialState,
-    listeners: {},
-    postMessage: jest.fn(),
-  };
+const makeFakeWorker = (
+  initialState: ServiceWorkerState = 'installed'
+): FakeWorker => ({
+  state: initialState,
+  postMessage: jest.fn(),
+});
+
+interface FakeRegistration extends ServiceWorkerRegistration {
+  _fireUpdateFound: () => void;
 }
 
-function installFakeServiceWorkerApi() {
-  const listeners: Record<string, Listener[]> = {};
-  const worker = makeFakeWorker('installed');
-  const activeWorker = makeFakeWorker('activated');
+function installFakeServiceWorkerApi(
+  options: {
+    waiting?: FakeWorker | null;
+    active?: FakeWorker | null;
+  } = {}
+) {
+  const waiting = options.waiting ?? makeFakeWorker('installed');
+  const active = options.active ?? makeFakeWorker('activated');
+
+  const updateFoundListeners: Listener[] = [];
+  const controllerListeners: Listener[] = [];
 
   const registration = {
-    active: activeWorker,
+    active,
     installing: null,
-    waiting: worker,
+    waiting,
     scope: '/',
     updateViaCache: 'none',
     addEventListener: jest.fn((event: string, cb: Listener) => {
-      listeners[event] = listeners[event] || [];
-      listeners[event].push(cb);
+      if (event === 'updatefound') updateFoundListeners.push(cb);
     }),
     removeEventListener: jest.fn(),
-    dispatchUpdate: (event: string) => {
-      (listeners[event] || []).forEach((cb) => cb({} as Event));
+    _fireUpdateFound: () => {
+      updateFoundListeners.forEach((cb) => cb({} as Event));
     },
-  } as unknown as ServiceWorkerRegistration & {
-    dispatchUpdate: (event: string) => void;
-  };
+  } as unknown as FakeRegistration;
 
   const controller = makeFakeWorker('activated');
 
-  const navigatorShim = {
-    serviceWorker: {
-      controller: controller as unknown as ServiceWorker,
+  Object.defineProperty(navigator, 'serviceWorker', {
+    configurable: true,
+    value: {
+      controller,
       register: jest.fn().mockResolvedValue(registration),
       addEventListener: jest.fn((event: string, cb: Listener) => {
-        navigatorShim._listeners[event] = navigatorShim._listeners[event] || [];
-        navigatorShim._listeners[event].push(cb);
+        if (event === 'controllerchange') controllerListeners.push(cb);
       }),
       removeEventListener: jest.fn(),
-      _listeners: listeners,
       _fireControllerChange: () => {
-        (navigatorShim._listeners['controllerchange'] || []).forEach((cb) => cb({} as Event));
+        controllerListeners.forEach((cb) => cb({} as Event));
       },
     },
-  };
-
-  Object.defineProperty(window.navigator, 'serviceWorker', {
-    configurable: true,
-    value: navigatorShim.serviceWorker,
   });
 
   return {
     registration,
-    worker,
-    fireControllerChange: navigatorShim.serviceWorker._fireControllerChange,
-    fireUpdateFound: () => registration.dispatchUpdate('updatefound'),
+    waiting,
+    fireControllerChange: () => {
+      controllerListeners.forEach((cb) => cb({} as Event));
+    },
   };
 }
 
@@ -81,25 +82,36 @@ describe('registerServiceWorker', () => {
   beforeEach(() => {
     __resetServiceWorkerRegistrationForTests();
     jest.resetModules();
-    // Default env to production for predictable behavior.
     process.env.NODE_ENV = 'production';
   });
 
   afterEach(() => {
-    // Reset the navigator stub so tests don't leak state between runs.
-    Object.defineProperty(window.navigator, 'serviceWorker', {
+    Object.defineProperty(navigator, 'serviceWorker', {
       configurable: true,
       value: undefined,
     });
   });
 
   it('returns "unsupported" when the API is unavailable', async () => {
-    Object.defineProperty(window.navigator, 'serviceWorker', { configurable: true, value: undefined });
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: undefined,
+    });
     const status = await registerServiceWorker({});
     expect(status).toBe('unsupported');
   });
 
-  it('registers the worker and reports "registered" in production', async () => {
+  it('returns "unsupported" in development unless force=true', async () => {
+    installFakeServiceWorkerApi();
+    process.env.NODE_ENV = 'development';
+    const status = await registerServiceWorker({});
+    expect(status).toBe('unsupported');
+
+    const forced = await registerServiceWorker({}, { force: true });
+    expect(forced).toBe('registered');
+  });
+
+  it('registers the worker and invokes onUpdate when a worker is waiting', async () => {
     const api = installFakeServiceWorkerApi();
     const onUpdate = jest.fn();
     const onOfflineReady = jest.fn();
@@ -107,50 +119,59 @@ describe('registerServiceWorker', () => {
     const status = await registerServiceWorker({ onUpdate, onOfflineReady });
 
     expect(status).toBe('registered');
-    expect(api.registration.addEventListener).toHaveBeenCalledWith('updatefound', expect.any(Function));
-    // A waiting worker + a controller => onUpdate was invoked synchronously.
+    expect(api.registration.addEventListener).toHaveBeenCalledWith(
+      'updatefound',
+      expect.any(Function)
+    );
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onOfflineReady).not.toHaveBeenCalled();
 
-    // Controller change => onOfflineReady once.
+    // First controllerchange fires onOfflineReady once.
     api.fireControllerChange();
     expect(onOfflineReady).toHaveBeenCalledTimes(1);
-    // Second controller change should not re-fire.
+    // Subsequent changes are no-ops (idempotent guard).
     api.fireControllerChange();
     expect(onOfflineReady).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onError when registration throws', async () => {
+  it('captures errors via onError and returns "error"', async () => {
     installFakeServiceWorkerApi();
-    // Override register to reject.
-    (navigator.serviceWorker.register as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    (navigator.serviceWorker.register as jest.Mock).mockRejectedValueOnce(
+      new Error('boom')
+    );
     const onError = jest.fn();
     const status = await registerServiceWorker({ onError });
     expect(status).toBe('error');
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
   });
 
-  it('applyUpdate posts SKIP_WAITING to the waiting worker', async () => {
-    const api = installFakeServiceWorkerApi();
-    await registerServiceWorker({});
-    const sent = applyUpdate();
-    expect(sent).toBe(true);
-    expect(api.worker.postMessage).toHaveBeenCalledWith({ type: 'SKIP_WAITING' });
+  it('fires onUpdate when a new worker installs after registration', async () => {
+    // Start with no waiting worker — becomes the "up to date" case.
+    const api = installFakeServiceWorkerApi({ waiting: null });
+    const onUpdate = jest.fn();
+    await registerServiceWorker({ onUpdate });
+
+    expect(onUpdate).not.toHaveBeenCalled();
+
+    // Simulate a new worker appearing via the updatefound event chain.
+    api.registration.waiting = makeFakeWorker('installed');
+    api.registration._fireUpdateFound();
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it('applyUpdate returns false when no worker is waiting', async () => {
-    installFakeServiceWorkerApi();
-    // Re-stub with no waiting worker.
-    const fakeRegistration = {
-      active: makeFakeWorker('activated'),
-      installing: null,
-      waiting: null,
-      scope: '/',
-      updateViaCache: 'none',
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-    } as unknown as ServiceWorkerRegistration;
-    (navigator.serviceWorker.register as jest.Mock).mockResolvedValueOnce(fakeRegistration);
+  it('posts SKIP_WAITING when applyUpdate() is called', async () => {
+    const api = installFakeServiceWorkerApi();
+    await registerServiceWorker({});
+    const posted = applyUpdate();
+    expect(posted).toBe(true);
+    expect(api.waiting.postMessage).toHaveBeenCalledWith({
+      type: 'SKIP_WAITING',
+    });
+  });
+
+  it('returns false from applyUpdate() when no worker is waiting', async () => {
+    installFakeServiceWorkerApi({ waiting: null });
     await registerServiceWorker({});
     expect(applyUpdate()).toBe(false);
   });

@@ -1,11 +1,15 @@
 /**
  * Offline Fallback Page
- * ----------------------
+ * -------------------------------------------------------------------------
  * Served by the Workbox `setCatchHandler` in `public/sw.js` whenever a
- * navigation request fails (no network AND no matching cache entry). It's
- * also pre-cached on SW install so it works on the very first offline
- * load. The page must remain dependency-light — it cannot assume any
- * client-side data or context provider — because it runs in the most
+ * navigation request fails (no network AND no cached page). It is also
+ * precached on SW install so it is available on the very first offline
+ * load — covering the acceptance criterion:
+ *
+ *   "Load app, go offline, refresh: app still loads".
+ *
+ * The page is intentionally context-free: it must NOT depend on `WalletProvider`,
+ * theme context, or any client-side data so it can render in the most
  * constrained scenario.
  */
 
@@ -17,7 +21,7 @@ interface OfflineFeature {
   description: string;
 }
 
-const OFFLINE_FEATURES: OfflineFeature[] = [
+const OFFLINE_FEATURES: ReadonlyArray<OfflineFeature> = [
   {
     title: 'Cached courses',
     description:
@@ -37,17 +41,20 @@ const OFFLINE_FEATURES: OfflineFeature[] = [
 
 const STATUS_CHECK_INTERVAL_MS = 5000;
 
-const redirectHome = () => {
+const redirectHome = (): void => {
+  // Use `href` (rather than `router.push`) so we bounce through the SW
+  // and pick up the newly-cached home route on retry.
   window.location.href = '/';
 };
 
 export default function OfflinePage() {
-  // Auto-redirect when connectivity returns. useEffect never runs on the
-  // server, so the listeners are added exactly once per mount and torn
-  // down on unmount.
   useEffect(() => {
+    // 1. Redirect as soon as the browser emits an `online` event.
     window.addEventListener('online', redirectHome);
 
+    // 2. Belt-and-braces: poll `navigator.onLine` for up-to 5 s in case
+    //    the event fires before our listener attaches. This catches
+    //    the common "already online when the SW fell back" case.
     const intervalId = window.setInterval(() => {
       if (navigator.onLine) {
         window.clearInterval(intervalId);
@@ -73,8 +80,8 @@ export default function OfflinePage() {
         <meta name="theme-color" content="#0f172a" />
       </Head>
 
-      <main className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-slate-100 flex items-center justify-center px-4 py-12">
-        <div className="max-w-2xl w-full text-center">
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 px-4 py-12 text-slate-100">
+        <div className="w-full max-w-2xl text-center">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-amber-500/10 ring-1 ring-amber-400/40">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -97,17 +104,18 @@ export default function OfflinePage() {
             </svg>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-semibold mb-3">
+          <h1 className="mb-3 text-3xl font-semibold sm:text-4xl">
             You&rsquo;re offline
           </h1>
 
-          <p className="text-slate-300 text-base sm:text-lg mb-8">
-            AetherMint can&rsquo;t reach the network right now. Don&rsquo;t worry &mdash; cached courses
-            and queued progress will continue to work, and we&rsquo;ll resync everything as soon as
-            you&rsquo;re back online.
+          <p className="mb-8 text-base text-slate-300 sm:text-lg">
+            AetherMint can&rsquo;t reach the network right now. Don&rsquo;t
+            worry &mdash; cached courses and queued progress will continue to
+            work, and we&rsquo;ll resync everything as soon as you&rsquo;re
+            back online.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">
+          <div className="mb-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <button
               type="button"
               onClick={redirectHome}
@@ -123,16 +131,16 @@ export default function OfflinePage() {
             </a>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-4 text-left">
+          <div className="grid gap-4 text-left sm:grid-cols-3">
             {OFFLINE_FEATURES.map((feature) => (
               <article
                 key={feature.title}
                 className="rounded-xl border border-slate-700 bg-slate-800/40 p-4"
               >
-                <h2 className="text-sm font-semibold text-sky-300 mb-1">
+                <h2 className="mb-1 text-sm font-semibold text-sky-300">
                   {feature.title}
                 </h2>
-                <p className="text-xs text-slate-300 leading-relaxed">
+                <p className="text-xs leading-relaxed text-slate-300">
                   {feature.description}
                 </p>
               </article>
@@ -140,8 +148,9 @@ export default function OfflinePage() {
           </div>
 
           <p className="mt-10 text-xs text-slate-500">
-            Connection status is monitored automatically. You&rsquo;ll be redirected as soon as the
-            network comes back &mdash; no need to refresh.
+            Connection status is monitored automatically. You&rsquo;ll be
+            redirected as soon as the network comes back &mdash; no need to
+            refresh.
           </p>
         </div>
       </main>

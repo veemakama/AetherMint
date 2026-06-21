@@ -1,60 +1,64 @@
 /**
  * OfflineIndicator
- * ----------------
- * Renders a fixed bottom banner whenever the browser reports it is offline.
+ * -------------------------------------------------------------------------
+ * Fixed bottom banner rendered whenever `useNetworkStatus` reports an offline
+ * state. The component is loaded from `_app.tsx` via
+ * `next/dynamic(..., { ssr: false })` so the first paint always happens on
+ * the client — that lets `useNetworkStatus` read `navigator.onLine` without
+ * producing a hydration mismatch.
  *
- * Loaded in `_app.tsx` via `next/dynamic(..., { ssr: false })`, so React
- * never tries to hydrate this with a server-rendered tree — the only
- * worry would be the very first client paint, where `useNetworkStatus`
- * has already attached the `online`/`offline` listeners and is in sync
- * with `navigator.onLine`. No extra mount guard needed.
- *
- * Visual style matches the platform's Tailwind design tokens. Inline SVG
- * is used instead of an icon library to keep the bundle small and the
- * component library-free.
+ * UX notes:
+ *   • Users can dismiss the banner; the choice persists in `localStorage`
+ *     under `storageKey` so we don't annoy them every refresh.
+ *   • The dismiss button is keyboard-reachable and labelled for screen
+ *     readers.
+ *   • Color tokens match the application's Tailwind palette (amber).
  */
 
 import { useState } from 'react';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
-// Component is loaded via `next/dynamic({ ssr: false })` from `_app.tsx`,
-// so the first render always happens on the client. No SSR guard needed.
-
-const readDismissed = (storageKey: string): boolean => {
-  try {
-    return window.localStorage.getItem(storageKey) === 'true';
-  } catch {
-    // localStorage can throw in private / sandboxed contexts — treat
-    // as "not dismissed" so the banner still surfaces.
-    return false;
-  }
-};
+const DEFAULT_STORAGE_KEY = 'aethermint-offline-banner-dismissed';
 
 interface OfflineIndicatorProps {
   /**
-   * Optional override for the dismissal state — useful for tests. The
-   * component reads & writes a `localStorage` flag under this key so
-   * end-users don't see a banner they already dismissed.
+   * Override the localStorage key used to remember that the user dismissed
+   * the banner. Mostly useful for tests / storybooks.
    */
   storageKey?: string;
 }
 
-export function OfflineIndicator({ storageKey = 'aethermint-offline-banner-dismissed' }: OfflineIndicatorProps) {
+const safeGetItem = (key: string): string | null => {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    // localStorage can throw in private mode / sandboxed iframes.
+    return null;
+  }
+};
+
+const safeSetItem = (key: string, value: string): void => {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* intentionally ignored */
+  }
+};
+
+export function OfflineIndicator({
+  storageKey = DEFAULT_STORAGE_KEY,
+}: OfflineIndicatorProps) {
   const { isOnline } = useNetworkStatus();
-  const [dismissed, setDismissed] = useState<boolean>(() => readDismissed(storageKey));
+  const [dismissed, setDismissed] = useState<boolean>(
+    () => safeGetItem(storageKey) === 'true'
+  );
 
   const handleDismiss = () => {
-    try {
-      window.localStorage.setItem(storageKey, 'true');
-    } catch {
-      /* localStorage may be disabled in private mode — ignore. */
-    }
+    safeSetItem(storageKey, 'true');
     setDismissed(true);
   };
 
-  if (isOnline || dismissed) {
-    return null;
-  }
+  if (isOnline || dismissed) return null;
 
   return (
     <div
@@ -82,7 +86,8 @@ export function OfflineIndicator({ storageKey = 'aethermint-offline-banner-dismi
             <line x1="2" y1="2" x2="22" y2="22" />
           </svg>
           <span className="truncate text-sm font-medium sm:text-base">
-            You&rsquo;re offline. Cached content will load and progress will sync automatically when you&rsquo;re back online.
+            You&rsquo;re offline &mdash; cached content remains available and
+            progress will sync automatically once you&rsquo;re back online.
           </span>
         </div>
         <button

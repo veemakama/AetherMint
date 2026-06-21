@@ -1,34 +1,48 @@
 /**
- * Service Worker Registration
- * ----------------------------
- * Registers the Workbox-based service worker in `public/sw.js` and wires up
- * the user-prompted update flow:
+ * Service Worker Registration Helper
+ * -------------------------------------------------------------------------
+ * Tiny client-side wrapper that registers `/sw.js` once the page has loaded
+ * and exposes a user-prompted update flow:
  *
- *   1. Wait for the `load` event so registration does not block the critical
- *      render path.
- *   2. Register `/sw.js` (matches the file served from `public/`).
- *   3. On every controller change, dispatch the registered listeners —
- *      callers can use `onUpdate` / `onOfflineReady` to show a banner.
- *   4. Skip-waiting is opt-in: the page must call `applyUpdate()` (which
- *      posts `{ type: 'SKIP_WAITING' }` to the new worker) so we never
- *      break in-flight fetches.
+ *   1. Wait for `load` to avoid competing with critical-render fetches.
+ *   2. Register with a `/` scope so the SW covers every page route.
+ *   3. Detect new workers waiting to activate and call `onUpdate` so the
+ *      UI can show a "Reload to update" prompt.
+ *   4. Only ON user consent does the page call `applyUpdate()`, which posts
+ *      `{ type: 'SKIP_WAITING' }` to the waiting worker. Nothing happens
+ *      automatically on install — that would surprise users mid-edit.
  *
- * Production-only by default — the helper is a no-op in development to
- * avoid stale cache headaches while iterating locally. Tests reset the
- * module via `__resetServiceWorkerRegistrationForTests()`.
+ * The whole module is exported as a plain function so it is straightforward
+ * to unit-test against a fake `navigator.serviceWorker`.
  */
 
-export type ServiceWorkerStatus = 'unsupported' | 'registering' | 'registered' | 'activated' | 'error';
+export type ServiceWorkerStatus =
+  | 'unsupported'
+  | 'registering'
+  | 'registered'
+  | 'activated'
+  | 'error';
 
 export interface ServiceWorkerCallbacks {
-  /** Called when a new worker is installed and waiting to activate. */
+  /** Fired when a new worker is installed and waiting to activate. */
   onUpdate?: (registration: ServiceWorkerRegistration) => void;
-  /** Called the first time a worker successfully activates. */
+  /** Fired the first time a worker successfully takes control of the page. */
   onOfflineReady?: (registration: ServiceWorkerRegistration) => void;
-  /** Called for any registration error. */
+  /** Called for any registration error — UI must degrade gracefully. */
   onError?: (error: unknown) => void;
 }
 
+export interface RegisterServiceWorkerOptions {
+  /** Bypass the production-only guard (used by integration tests). */
+  force?: boolean;
+  /** Override the script URL (defaults to `/sw.js`). */
+  scriptUrl?: string;
+  /** Override scope (defaults to `/`). */
+  scope?: string;
+}
+
+// Module-local state so `applyUpdate()` can find the current registration
+// without us threading it through React every render.
 let activatedOnce = false;
 let currentRegistration: ServiceWorkerRegistration | null = null;
 
@@ -45,50 +59,64 @@ const isSupported = (): boolean =>
   typeof window.ServiceWorkerRegistration !== 'undefined';
 
 /**
- * Register the service worker. Safe to call from `useEffect` — performs
- * no work in non-production environments unless `force` is true.
+ * Register the Workbox-based service worker. Resolves with the resulting
+ * status — never throws. In development (or when the API is unavailable)
+ * the function is a no-op that resolves to `'unsupported'`.
  */
 export async function registerServiceWorker(
   callbacks: ServiceWorkerCallbacks = {},
-  options: { force?: boolean; scriptUrl?: string } = {}
+  options: RegisterServiceWorkerOptions = {}
 ): Promise<ServiceWorkerStatus> {
   const { onUpdate, onOfflineReady, onError } = callbacks;
-  const { force = false, scriptUrl = '/sw.js' } = options;
+  const {
+    force = false,
+    scriptUrl = '/sw.js',
+    scope = '/',
+  } = options;
 
   if (!isSupported()) {
     return 'unsupported';
   }
 
   if (!force && !isProduction()) {
-    // Don't pollute local dev cache.
+    // Don't pollute local dev caches.
     return 'unsupported';
   }
 
   try {
     const registration = await navigator.serviceWorker.register(scriptUrl, {
-      scope: '/',
+      scope,
       updateViaCache: 'none',
     });
 
     currentRegistration = registration;
 
-    const triggerCallbacks = () => {
-      const waiting = registration.waiting ?? registration.installing ?? null;
-      if (waiting && waiting.state === 'installed' && navigator.serviceWorker.controller) {
+    const fireUpdateIfWaiting = () => {
+      const waiting =
+        registration.waiting ?? registration.installing ?? null;
+      if (
+        waiting &&
+        waiting.state === 'installed' &&
+        navigator.serviceWorker.controller
+      ) {
         onUpdate?.(registration);
       }
     };
 
-    triggerCallbacks();
+    // Inspect any worker that is already waiting (e.g. user refreshed after
+    // the update was registered but not yet activated).
+    fireUpdateIfWaiting();
 
-    // Listen for subsequent installs (e.g. after a refresh).
+    // Listen for the next install/activation cycle.
     registration.addEventListener('updatefound', () => {
       const newWorker = registration.installing;
       if (!newWorker) return;
-      newWorker.addEventListener('statechange', triggerCallbacks);
+      newWorker.addEventListener('statechange', fireUpdateIfWaiting);
     });
 
-    // Listen for controller changes — fires when a new worker takes over.
+    // First controller change = a worker took over = the user can use the
+    // app offline. Subsequent changes mean a *future* update and we
+    // surface them through `onUpdate` above.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!activatedOnce) {
         activatedOnce = true;
@@ -104,13 +132,11 @@ export async function registerServiceWorker(
 }
 
 /**
- * Send `SKIP_WAITING` to the waiting worker so it activates immediately.
- * Call this from the UI when the user accepts an update prompt, then
- * reload the page for an extra layer of safety.
+ * Prompt the waiting worker to take control. The page must call this AFTER
+ * the user has accepted an update prompt — typically followed by `location.reload()`.
  *
- * Returns `true` if a `SKIP_WAITING` message was posted to a waiting
- * worker. `false` means there is no pending update — the return value
- * is informational; callers may safely ignore it.
+ * Returns `true` if a `SKIP_WAITING` message was posted, `false` if there is
+ * no pending update.
  */
 export function applyUpdate(): boolean {
   if (!currentRegistration) return false;
@@ -120,10 +146,7 @@ export function applyUpdate(): boolean {
   return true;
 }
 
-/**
- * Test-only helper — clears module-local state so jest tests don't leak.
- * Not exported from the package barrel.
- */
+/** Test-only helper — exposed so jest suites can reset module state. */
 export function __resetServiceWorkerRegistrationForTests(): void {
   activatedOnce = false;
   currentRegistration = null;

@@ -121,10 +121,9 @@ const nextConfig = {
           },
         ],
       },
-      // Allow the service worker at /sw.js to control the entire site.
-      // /sw.js is served from `public/sw.js` and Next.js already exposes
-      // it at the site root, so this header is mainly a safety net for
-      // proxy layers that strip headers.
+      // Service-worker headers — ensure the browser accepts `/sw.js` as a
+      // top-level worker (Service-Worker-Allowed: '/') and never serves it
+      // from an HTTP cache (penalising immediate SW updates).
       {
         source: '/sw.js',
         headers: [
@@ -142,7 +141,6 @@ const nextConfig = {
           },
         ],
       },
-
     ];
   },
 };

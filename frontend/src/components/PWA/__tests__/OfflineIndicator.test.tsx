@@ -2,19 +2,30 @@
  * @jest-environment jsdom
  */
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 
-// `useNetworkStatus` reads `navigator.onLine` and subscribes to
-// `window` online/offline events — fine in jsdom but we mock it so the
-// tests can flip the value deterministically.
+import { OfflineIndicator } from '../OfflineIndicator';
+
+// `useNetworkStatus` reads `navigator.onLine` and subscribes to `window`
+// online/offline events — fine in jsdom but we mock it so each test can
+// flip the value deterministically.
+// Note: keeps the cast on a single expression so the TSX parser does not
+// confuse `<typeof useNetworkStatus>` with JSX.
 jest.mock('../../../hooks/useNetworkStatus', () => ({
   useNetworkStatus: jest.fn(),
 }));
 
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
-import { OfflineIndicator } from '../OfflineIndicator';
 
-const mockUseNetworkStatus = useNetworkStatus as jest.MockedFunction<typeof useNetworkStatus>;
+// `jest.Mock` keeps this file free of generic type expressions — the TSX
+// transformer otherwise confuses `<typeof useNetworkStatus>` with JSX.
+const mockUseNetworkStatus = useNetworkStatus as unknown as jest.Mock;
 
 describe('OfflineIndicator', () => {
   beforeEach(() => {
@@ -32,7 +43,7 @@ describe('OfflineIndicator', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('renders the banner with role=alert when offline', async () => {
+  it('renders the banner with role="alert" when offline', async () => {
     mockUseNetworkStatus.mockReturnValue({ isOnline: false });
     render(<OfflineIndicator />);
 
@@ -41,44 +52,59 @@ describe('OfflineIndicator', () => {
     expect(banner.textContent).toMatch(/offline/i);
   });
 
-  it('hides the banner after the user dismisses it and remembers the choice', async () => {
+  it('hides the banner once dismissed and persists the choice', async () => {
     mockUseNetworkStatus.mockReturnValue({ isOnline: false });
     render(<OfflineIndicator />);
 
-    const dismissButton = await screen.findByRole('button', { name: /dismiss offline banner/i });
+    const dismiss = await screen.findByRole('button', {
+      name: /dismiss offline banner/i,
+    });
+
     await act(async () => {
-      fireEvent.click(dismissButton);
+      fireEvent.click(dismiss);
     });
 
     await waitFor(() => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
-    expect(window.localStorage.getItem('aethermint-offline-banner-dismissed')).toBe('true');
+    expect(window.localStorage.getItem('aethermint-offline-banner-dismissed')).toBe(
+      'true'
+    );
   });
 
-  it('renders immediately on the client (no hydration mismatch)', async () => {
-    mockUseNetworkStatus.mockReturnValue({ isOnline: false });
-    // The component is loaded with ssr:false so we never serve a
-    // server-rendered skeleton. The first paint should already include
-    // the banner.
-    render(<OfflineIndicator />);
-    await waitFor(() => {
-      expect(screen.queryByRole('alert')).toBeInTheDocument();
-    });
-  });
-
-  it('honours a custom storage key for dismissal', async () => {
+  it('honours a custom storage key', async () => {
     mockUseNetworkStatus.mockReturnValue({ isOnline: false });
     render(<OfflineIndicator storageKey="custom-dismiss" />);
 
-    const dismissButton = await screen.findByRole('button', { name: /dismiss offline banner/i });
+    const dismiss = await screen.findByRole('button', {
+      name: /dismiss offline banner/i,
+    });
+
     await act(async () => {
-      fireEvent.click(dismissButton);
+      fireEvent.click(dismiss);
     });
 
     await waitFor(() => {
       expect(window.localStorage.getItem('custom-dismiss')).toBe('true');
+    });
+  });
+
+  it('does not throw when localStorage is unavailable', () => {
+    mockUseNetworkStatus.mockReturnValue({ isOnline: false });
+    const original = window.localStorage;
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('blocked');
+      },
+    });
+
+    expect(() => render(<OfflineIndicator />)).not.toThrow();
+
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: original,
     });
   });
 });
