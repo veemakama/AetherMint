@@ -121,6 +121,26 @@ const nextConfig = {
           },
         ],
       },
+      // Service-worker headers — ensure the browser accepts `/sw.js` as a
+      // top-level worker (Service-Worker-Allowed: '/') and never serves it
+      // from an HTTP cache (penalising immediate SW updates).
+      {
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+          {
+            key: 'Service-Worker-Allowed',
+            value: '/',
+          },
+          {
+            key: 'Content-Type',
+            value: 'application/javascript; charset=utf-8',
+          },
+        ],
+      },
     ];
   },
 };
