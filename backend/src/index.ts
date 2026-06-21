@@ -27,7 +27,9 @@ import {
   ddosProtection,
   botDetection,
   advancedRestrictions,
-  requestSanitizer
+  requestSanitizer,
+  cspMiddleware,
+  securityHeadersMiddleware
 } from './middleware/security';
 import { detectSuspiciousPatterns } from './middleware/sanitizer';
 // @ts-ignore
@@ -104,6 +106,8 @@ setSyncWebsocketEmitter((userId: string, event: string, data: any) => {
 
 // Middleware
 app.use(helmet());
+app.use(cspMiddleware);
+app.use(securityHeadersMiddleware);
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
