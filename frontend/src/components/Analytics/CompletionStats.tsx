@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Trophy, Target, Clock, Award, TrendingUp, BookOpen } from 'lucide-react';
-import { Skeleton, ErrorDisplay, EmptyState } from '../LoadingFallback';
 
 interface CourseStats {
   courseId: string;
@@ -103,10 +102,14 @@ export const CompletionStats: React.FC<CompletionStatsProps> = ({ userId, onData
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
-          <Skeleton className="h-5 w-40" />
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-20 bg-gray-200 rounded"></div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -116,7 +119,15 @@ export const CompletionStats: React.FC<CompletionStatsProps> = ({ userId, onData
   if (error) {
     return (
       <div className="bg-white rounded-lg shadow-md p-6">
-        <ErrorDisplay message={error} onRetry={fetchCompletionData} />
+        <div className="text-red-500 text-center">
+          <p>Error loading completion data: {error}</p>
+          <button 
+            onClick={fetchCompletionData}
+            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -244,11 +255,10 @@ export const CompletionStats: React.FC<CompletionStatsProps> = ({ userId, onData
         </div>
 
         {filteredAchievements.length === 0 && (
-          <EmptyState
-            icon={<Trophy className="h-8 w-8" />}
-            title="No achievements in this category yet"
-            description="Keep learning to earn achievements."
-          />
+          <div className="text-center py-8 text-gray-500">
+            <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>No achievements in this category yet</p>
+          </div>
         )}
       </div>
     </div>
