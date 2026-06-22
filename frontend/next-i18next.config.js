@@ -34,6 +34,7 @@ module.exports = {
     'admin',
     'errors',
     'validation',
+    'whiteboard',
   ],
   defaultNS: 'common',
 
