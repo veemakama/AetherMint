@@ -1,52 +1,34 @@
 {
-  "title": "Mensajes de Error",
-  "description": "Mensajes de error comunes y sus traducciones",
-  "general": {
-    "unknown": "Ocurrió un error desconocido",
-    "unexpected": "Ocurrió un error inesperado",
-    "server": "Ocurrió un error del servidor",
-    "network": "Ocurrió un error de red",
-    "timeout": "Tiempo de espera agotado",
-    "offline": "Estás fuera de línea",
-    "retry": "Por favor intenta de nuevo",
-    "contactSupport": "Por favor contacta al soporte"
-  },
-  "authentication": {
-    "invalidCredentials": "Usuario o contraseña inválidos",
-    "usernameRequired": "Se requiere nombre de usuario",
-    "passwordRequired": "Se requiere contraseña",
-    "emailRequired": "Se requiere correo electrónico",
-    "invalidEmail": "Dirección de correo inválida",
-    "weakPassword": "La contraseña es demasiado débil",
-    "passwordMismatch": "Las contraseñas no coinciden",
-    "sessionExpired": "La sesión ha expirado",
-    "loginRequired": "Inicio de sesión requerido",
-    "permissionDenied": "Permiso denegado"
-  },
-  "authorization": {
-    "accessDenied": "Acceso denegado",
-    "unauthorized": "Acceso no autorizado",
-    "insufficientPermissions": "Permisos insuficientes"
+  "errors": {
+    "title": "Algo salió mal",
+    "generic": "Ocurrió algo inesperado. Por favor, inténtalo de nuevo.",
+    "reload": "Recargar la página",
+    "back": "Volver",
+    "notFound": {
+      "title": "Página no encontrada",
+      "message": "La página que buscas no existe o ha sido movida."
+    },
+    "forbidden": {
+      "title": "Acceso denegado",
+      "message": "No tienes permiso para ver esta página."
+    },
+    "serverError": {
+      "title": "Error del servidor",
+      "message": "El servidor tuvo un problema inesperado. Inténtalo de nuevo en un momento."
+    },
+    "offline": {
+      "title": "Estás sin conexión",
+      "message": "Estás sin conexión. Tus cambios se sincronizarán cuando vuelvas a conectarte."
+    }
   },
   "validation": {
     "required": "Este campo es obligatorio",
-    "invalid": "Valor inválido",
-    "tooShort": "El valor es demasiado corto",
-    "tooLong": "El valor es demasiado largo",
-    "email": "Dirección de correo inválida",
-    "url": "URL inválida",
-    "phone": "Número de teléfono inválido"
-  },
-  "network": {
-    "offline": "Actualmente estás fuera de línea",
-    "online": "Ahora estás en línea",
-    "timeout": "Tiempo de espera agotado",
-    "notFound": "Recurso no encontrado"
-  },
-  "payment": {
-    "paymentFailed": "Pago fallido",
-    "paymentDeclined": "Pago rechazado",
-    "insufficientFunds": "Fondos insuficientes",
-    "invalidCard": "Datos de tarjeta inválidos"
+    "minLength": "Ingresa al menos {{count}} caracteres",
+    "maxLength": "No superes los {{count}} caracteres",
+    "invalidEmail": "Ingresa una dirección de correo válida",
+    "invalidUrl": "Ingresa una URL válida",
+    "mismatch": "Los valores no coinciden",
+    "positiveNumber": "Ingresa un número positivo",
+    "integer": "Ingresa un número entero"
   }
 }
