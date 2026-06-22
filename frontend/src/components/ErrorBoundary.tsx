@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { ErrorDisplay } from './LoadingFallback';
 
 interface Props {
   children: ReactNode;
@@ -15,9 +15,7 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false
-  };
+  public state: State = { hasError: false };
 
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
@@ -25,10 +23,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
-    this.setState({
-      error,
-      errorInfo
-    });
+    this.setState({ error, errorInfo });
   }
 
   private handleRetry = () => {
@@ -37,44 +32,21 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
-      }
+      if (this.props.fallback) return this.props.fallback;
+
+      const details = this.state.error
+        ? [this.state.error.toString(), this.state.errorInfo?.componentStack].filter(Boolean).join('\n\n')
+        : undefined;
 
       return (
-        <div className="min-h-[200px] flex items-center justify-center">
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
-              <h3 className="text-lg font-semibold text-red-900 dark:text-red-300">
-                Something went wrong
-              </h3>
-            </div>
-            
-            <p className="text-red-600 dark:text-red-400 mb-4">
-              An unexpected error occurred. Please try refreshing the page or contact support if the problem persists.
-            </p>
-
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <details className="mb-4">
-                <summary className="text-sm text-red-800 dark:text-red-200 cursor-pointer">
-                  Error Details
-                </summary>
-                <pre className="mt-2 text-xs text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 p-2 rounded overflow-auto">
-                  {this.state.error.toString()}
-                  {this.state.errorInfo && this.state.errorInfo.componentStack}
-                </pre>
-              </details>
-            )}
-
-            <button
-              onClick={this.handleRetry}
-              className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Try Again
-            </button>
-          </div>
+        <div className="min-h-[200px] flex items-center justify-center p-4">
+          <ErrorDisplay
+            title="Something went wrong"
+            message="An unexpected error occurred. Please try again or contact support if the problem persists."
+            details={details}
+            onRetry={this.handleRetry}
+            className="max-w-md w-full"
+          />
         </div>
       );
     }
