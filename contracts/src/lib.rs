@@ -1,6 +1,7 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, String, Vec};
 
+use crate::credential_registry::{BatchCredentialParams, MAX_BATCH_SIZE};
 use crate::utils::validation::{
     validate_non_zero_address, validate_positive_u64, validate_string_length,
     MAX_DESCRIPTION_LENGTH, MAX_SHORT_TEXT_LENGTH, MAX_TITLE_LENGTH, MAX_URI_LENGTH,
@@ -83,6 +84,8 @@ pub mod credential_events;
 mod credential_events_test;
 
 pub mod credential_registry;
+#[cfg(test)]
+mod credential_registry_test;
 pub mod dynamic_nft;
 #[cfg(test)]
 mod dynamic_nft_test;
@@ -646,57 +649,21 @@ impl AetherMintContract {
         credential_registry::get_attestation_count(&env, credential_id)
     }
 
-    // ===== DNA Checkpoint / Recovery =====
-
-    /// Create a checkpoint of the current DNA storage state.
-    pub fn create_dna_checkpoint(env: Env, admin: Address, label: String) -> u64 {
-        admin.require_auth();
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .unwrap_or_else(|| panic!("Admin not found"));
-        if admin != stored_admin {
-            panic!("Only admin can create checkpoints");
-        }
-        dna_storage::create_checkpoint(&env, label)
+    /// Issue multiple credentials in a single transaction (issue #118).
+    ///
+    /// Performs one authorization check for the issuer and stores every
+    /// credential atomically — if any validation fails the whole batch rolls
+    /// back. Returns the newly created credential IDs in input order.
+    pub fn issue_credentials_batch(
+        env: Env,
+        issuer: Address,
+        params: Vec<BatchCredentialParams>,
+    ) -> Vec<u64> {
+        credential_registry::issue_credentials_batch(&env, issuer, params)
     }
 
-    /// Restore DNA storage to a previous checkpoint.
-    pub fn restore_dna_checkpoint(env: Env, admin: Address, checkpoint_id: u64) -> bool {
-        admin.require_auth();
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .unwrap_or_else(|| panic!("Admin not found"));
-        if admin != stored_admin {
-            panic!("Only admin can restore checkpoints");
-        }
-        dna_storage::restore_checkpoint(&env, checkpoint_id)
-    }
-
-    /// List all available checkpoints with metadata.
-    pub fn list_dna_checkpoints(env: Env) -> Vec<dna_storage::CheckpointMeta> {
-        dna_storage::list_checkpoints(&env)
-    }
-
-    /// Delete a checkpoint (admin only).
-    pub fn delete_dna_checkpoint(env: Env, admin: Address, checkpoint_id: u64) -> bool {
-        admin.require_auth();
-        let stored_admin: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Admin)
-            .unwrap_or_else(|| panic!("Admin not found"));
-        if admin != stored_admin {
-            panic!("Only admin can delete checkpoints");
-        }
-        dna_storage::delete_checkpoint(&env, checkpoint_id)
-    }
-
-    /// Verify integrity of all DNA-stored credentials.
-    pub fn verify_dna_integrity(env: Env) -> dna_services::IntegrityReport {
-        dna_services::verify_integrity(&env)
+    /// Return the maximum number of credentials allowed in a single batch.
+    pub fn max_batch_size(_env: Env) -> u32 {
+        MAX_BATCH_SIZE
     }
 }
