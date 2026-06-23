@@ -6,6 +6,8 @@
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
   --background-end-rgb: 255, 255, 255;
+  --focus-ring-color: #1d4ed8;
+  --focus-ring-shadow: rgba(29, 78, 216, 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,8 +31,12 @@ body {
   box-sizing: border-box;
 }
 
+:focus {
+  outline: none;
+}
+
 :focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid var(--focus-ring-color);
   outline-offset: 3px;
 }
 
@@ -39,8 +45,13 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
-[tabindex]:focus-visible {
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.24);
+[tabindex]:focus-visible,
+summary:focus-visible {
+  box-shadow: 0 0 0 4px var(--focus-ring-shadow);
+}
+
+main[tabindex='-1']:focus {
+  outline: none;
 }
 
 img, video, canvas, svg {
@@ -55,16 +66,31 @@ img, video, canvas, svg {
   z-index: 9999;
   transform: translateY(-150%);
   border-radius: 0.5rem;
-  background: #1d4ed8;
+  background: #0f172a;
   color: #ffffff;
   padding: 0.75rem 1rem;
   font-weight: 700;
   transition: transform 150ms ease;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.28);
 }
 
 .skip-to-content:focus,
 .skip-to-content:focus-visible {
   transform: translateY(0);
+}
+
+.skip-to-content:hover {
+  color: #ffffff;
+}
+
+html:focus-within {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
 }
 
 /* Touch target minimum 44x44px */

@@ -439,6 +439,7 @@ export const DiscoveryExperience: React.FC = () => {
 
                 <div className="flex flex-wrap gap-3">
                   <button
+                    type="button"
                     className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
                     disabled={isSavingSearch}
                     onClick={handleSaveSearch}
@@ -447,6 +448,7 @@ export const DiscoveryExperience: React.FC = () => {
                     {isSavingSearch ? 'Saving…' : 'Save search'}
                   </button>
                   <button
+                    type="button"
                     className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
                     disabled={isCreatingAlert}
                     onClick={handleCreateAlert}
@@ -517,6 +519,7 @@ export const DiscoveryExperience: React.FC = () => {
                   {trending.map((course, index) => (
                     <button
                       key={course.id}
+                      type="button"
                       className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 p-3 text-left transition hover:border-slate-400"
                       onClick={() => handleSelectCourse(course)}
                       aria-label={`Preview trending course ${course.title}`}
@@ -620,6 +623,7 @@ export const DiscoveryExperience: React.FC = () => {
                       {curator.picks.map((course) => (
                         <button
                           key={course.id}
+                          type="button"
                           className="flex w-full items-center justify-between rounded-2xl bg-white px-3 py-2 text-left text-sm transition hover:bg-amber-50"
                           onClick={() => handleSelectCourse(course)}
                           aria-label={`Preview curator pick ${course.title}`}
@@ -730,6 +734,7 @@ export const DiscoveryExperience: React.FC = () => {
                 {similarCourses.map((course) => (
                   <button
                     key={course.id}
+                    type="button"
                     className="w-full rounded-2xl border border-slate-200 p-3 text-left transition hover:border-slate-400"
                     onClick={() => handleSelectCourse(course)}
                     aria-label={`Preview similar course ${course.title}`}

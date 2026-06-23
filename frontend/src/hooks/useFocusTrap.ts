@@ -26,45 +26,89 @@ export const useFocusTrap = (isActive: boolean, options: FocusTrapOptions = {}) 
 
     const container = containerRef.current;
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const focusableElements = container.querySelectorAll<HTMLElement>(focusableSelector);
+    const getFocusableElements = () =>
+      Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).filter(
+        (element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true'
+      );
 
-    if (focusableElements.length === 0) {
-      container.setAttribute('tabindex', '-1');
-      container.focus();
-    }
+    const focusElement = (element: HTMLElement) => {
+      element.focus({ preventScroll: true });
+    };
 
-    const firstElement = focusableElements[0] || container;
-    const lastElement = focusableElements[focusableElements.length - 1] || container;
+    const focusFallback = () => {
+      if (!container.hasAttribute('tabindex')) {
+        container.setAttribute('tabindex', '-1');
+      }
+      focusElement(container);
+    };
+
     const initialElement = initialFocusSelector
       ? container.querySelector<HTMLElement>(initialFocusSelector)
       : null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
         onEscape?.();
         return;
       }
 
       if (e.key !== 'Tab') return;
 
+      const focusableElements = getFocusableElements();
+      if (focusableElements.length === 0) {
+        e.preventDefault();
+        focusFallback();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
       if (e.shiftKey) {
+        if (!container.contains(document.activeElement)) {
+          e.preventDefault();
+          focusElement(lastElement);
+          return;
+        }
+
         if (document.activeElement === firstElement) {
           e.preventDefault();
-          lastElement?.focus();
+          focusElement(lastElement);
         }
       } else {
+        if (!container.contains(document.activeElement)) {
+          e.preventDefault();
+          focusElement(firstElement);
+          return;
+        }
+
         if (document.activeElement === lastElement) {
           e.preventDefault();
-          firstElement?.focus();
+          focusElement(firstElement);
+        }
+      }
+    };
+
+    const handleFocusIn = (event: FocusEvent) => {
+      if (!container.contains(event.target as Node)) {
+        const focusableElements = getFocusableElements();
+        if (focusableElements.length > 0) {
+          focusElement(focusableElements[0]);
+        } else {
+          focusFallback();
         }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    (initialElement || firstElement)?.focus();
+    document.addEventListener('focusin', handleFocusIn);
+    const focusableElements = getFocusableElements();
+    (initialElement || focusableElements[0] || container) && focusElement((initialElement || focusableElements[0] || container) as HTMLElement);
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('focusin', handleFocusIn);
       previouslyFocused?.focus();
     };
   }, [initialFocusSelector, isActive, onEscape]);

@@ -105,7 +105,7 @@ pub mod user_profile;
 // pub mod consciousness;
 // pub mod courseMetadata;
 // pub mod syncCoordination;
-// pub mod proctoring;
+pub mod proctoring;
 // pub mod tokenomics;
 // pub mod marketplace;
 
@@ -127,6 +127,8 @@ mod consciousness_test;
 mod courseMetadata_test;
 #[cfg(test)]
 mod syncCoordination_test;
+#[cfg(test)]
+mod proctoring_test;
 
 pub mod utils;
 
@@ -454,6 +456,31 @@ impl AetherMintContract {
         )
     }
 
+    /// Issue a proctored credential and link it to a completed proctoring session.
+    pub fn issue_proctored_credential_with_expiration(
+        env: Env,
+        issuer: Address,
+        recipient: Address,
+        title: String,
+        description: String,
+        course_id: String,
+        ipfs_hash: String,
+        validity_duration: u64,
+        session_id: u64,
+    ) -> u64 {
+        credential_registry::issue_proctored_credential_with_expiration(
+            &env,
+            issuer,
+            recipient,
+            title,
+            description,
+            course_id,
+            ipfs_hash,
+            validity_duration,
+            session_id,
+        )
+    }
+
     /// Renew an existing credential
     pub fn renew_credential(
         env: Env,
@@ -508,6 +535,97 @@ impl AetherMintContract {
     /// Batch update expiration status for multiple credentials
     pub fn batch_update_expiration_status(env: Env, credential_ids: Vec<u64>) -> Vec<u64> {
         credential_registry::batch_update_expiration_status(&env, credential_ids)
+    }
+
+    /// Whether a credential was issued through the proctored flow.
+    pub fn is_proctored_credential(env: Env, credential_id: u64) -> bool {
+        credential_registry::is_proctored_credential(&env, credential_id)
+    }
+
+    // ===== Proctoring =====
+
+    /// Start a proctoring session.
+    pub fn start_proctoring_session(
+        env: Env,
+        exam_id: String,
+        student: Address,
+        proctor: Address,
+    ) -> u64 {
+        proctoring::start_proctoring_session(&env, exam_id, student, proctor)
+    }
+
+    /// Submit the proctoring result for a session.
+    pub fn submit_proctoring_result(
+        env: Env,
+        session_id: u64,
+        result_data: String,
+        proctor_signature: BytesN<64>,
+    ) {
+        proctoring::submit_proctoring_result(&env, session_id, result_data, proctor_signature)
+    }
+
+    /// Challenge a completed proctoring result.
+    pub fn challenge_proctoring_result(
+        env: Env,
+        session_id: u64,
+        challenger: Address,
+        evidence: String,
+    ) {
+        proctoring::challenge_proctoring_result(&env, session_id, challenger, evidence)
+    }
+
+    /// Resolve a proctoring challenge.
+    pub fn resolve_challenge(
+        env: Env,
+        session_id: u64,
+        resolution: proctoring::ChallengeResolution,
+        admin: Address,
+    ) {
+        proctoring::resolve_challenge(&env, session_id, resolution, admin)
+    }
+
+    /// Link a credential issuance to a proctoring session.
+    pub fn register_proctored_credential(env: Env, session_id: u64, credential_id: u64) {
+        proctoring::register_proctored_credential(&env, session_id, credential_id)
+    }
+
+    /// Check whether a session is eligible for a proctored credential.
+    pub fn proctored_credential_is_eligible(env: Env, session_id: u64) -> bool {
+        proctoring::proctored_credential_is_eligible(&env, session_id)
+    }
+
+    /// Get a stored proctoring session.
+    pub fn get_proctoring_session(
+        env: Env,
+        session_id: u64,
+    ) -> proctoring::ProctoringSession {
+        proctoring::get_proctoring_session(&env, session_id)
+    }
+
+    /// Get a stored proctoring result.
+    pub fn get_proctoring_result(env: Env, session_id: u64) -> Option<proctoring::ProctoringResult> {
+        proctoring::get_proctoring_result(&env, session_id)
+    }
+
+    /// Get a stored challenge for a session.
+    pub fn get_proctoring_challenge(
+        env: Env,
+        session_id: u64,
+    ) -> Option<proctoring::ProctoringChallenge> {
+        proctoring::get_proctoring_challenge(&env, session_id)
+    }
+
+    /// Get a stored challenge resolution for a session.
+    pub fn get_proctoring_resolution(
+        env: Env,
+        session_id: u64,
+    ) -> Option<proctoring::ProctoringResolutionRecord> {
+        proctoring::get_proctoring_resolution(&env, session_id)
+    }
+
+    /// Get the number of proctoring sessions created so far.
+    pub fn get_proctoring_session_count(env: Env) -> u64 {
+        proctoring::get_proctoring_session_count(&env)
     }
 
     // ===== Dynamic NFT Functions =====
