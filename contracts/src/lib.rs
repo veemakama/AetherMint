@@ -130,6 +130,13 @@ mod syncCoordination_test;
 
 pub mod utils;
 
+pub mod dna_storage;
+pub mod dna_services;
+#[cfg(test)]
+mod dna_storage_test;
+#[cfg(test)]
+mod dna_storage_checkpoint_test;
+
 
 /// Optimized user profile with packed storage
 #[contracttype]
