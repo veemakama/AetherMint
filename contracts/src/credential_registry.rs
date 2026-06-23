@@ -52,6 +52,7 @@ pub struct CredentialRegistry {
     pub issued_at: u64,
     pub expires_at: u64,
     pub status: CredentialStatus,
+    pub proctored: bool,
     pub ipfs_hash: String,
     pub renewal_count: u32,
     pub last_renewed_at: Option<u64>,
@@ -133,6 +134,7 @@ pub fn issue_credential_with_expiration(
         issued_at: current_time,
         expires_at: current_time + validity_duration,
         status: CredentialStatus::Active,
+        proctored: false,
         ipfs_hash,
         renewal_count: 0,
         last_renewed_at: None,
@@ -565,6 +567,7 @@ pub fn issue_credentials_batch(
             issued_at: current_time,
             expires_at: current_time + p.validity_duration,
             status: CredentialStatus::Active,
+            proctored: false,
             ipfs_hash: p.ipfs_hash.clone(),
             renewal_count: 0,
             last_renewed_at: None,
@@ -607,4 +610,62 @@ pub fn issue_credentials_batch(
     }
 
     credential_ids
+}
+
+/// Mark an issued credential as proctored.
+///
+/// This is used after a proctoring session has been successfully linked to the
+/// credential issuance flow.
+pub fn mark_credential_as_proctored(env: &Env, credential_id: u64) -> bool {
+    let mut credential: CredentialRegistry = env
+        .storage()
+        .persistent()
+        .get(&CredentialRegistryKey::Credential(credential_id))
+        .unwrap_or_else(|| panic!("Credential not found"));
+
+    credential.proctored = true;
+    env.storage().persistent().set(
+        &CredentialRegistryKey::Credential(credential_id),
+        &credential,
+    );
+
+    true
+}
+
+/// Whether a credential was issued through the proctored flow.
+pub fn is_proctored_credential(env: &Env, credential_id: u64) -> bool {
+    env.storage()
+        .persistent()
+        .get::<_, CredentialRegistry>(&CredentialRegistryKey::Credential(credential_id))
+        .map(|credential| credential.proctored)
+        .unwrap_or(false)
+}
+
+/// Issue a credential and mark it as proctored once the session is linked.
+pub fn issue_proctored_credential_with_expiration(
+    env: &Env,
+    issuer: Address,
+    recipient: Address,
+    title: String,
+    description: String,
+    course_id: String,
+    ipfs_hash: String,
+    validity_duration: u64,
+    session_id: u64,
+) -> u64 {
+    let credential_id = issue_credential_with_expiration(
+        env,
+        issuer,
+        recipient,
+        title,
+        description,
+        course_id,
+        ipfs_hash,
+        validity_duration,
+    );
+
+    crate::proctoring::register_proctored_credential(env, session_id, credential_id);
+    mark_credential_as_proctored(env, credential_id);
+
+    credential_id
 }
