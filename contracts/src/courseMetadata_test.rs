@@ -4,7 +4,7 @@ use crate::courseMetadata::{
     CourseCompletion, CourseMetadata, CourseMetadataContract, CourseMetadataKey, CourseStatus,
     InstructorProfile,
 };
-use soroban_sdk::{vec, Address, Env, String, Vec};
+use soroban_sdk::{testutils::Address as _, vec, Address, Env, String, Vec};
 
 #[test]
 fn test_initialize() {

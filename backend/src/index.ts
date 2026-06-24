@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { Redis } from 'ioredis';
 import swaggerUi from 'swagger-ui-express';
 import logger from './utils/logger';
+import requestId from './middleware/requestId';
 import requestLogger from './middleware/requestLogger';
 import { connectRedis } from './utils/redis';
 import { initWebsocketService } from './services/websocketService';
@@ -110,6 +111,7 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(requestId);
 app.use(requestLogger);
 
 // Integration of sanitization middleware

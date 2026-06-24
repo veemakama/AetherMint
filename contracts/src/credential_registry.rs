@@ -634,6 +634,12 @@ pub fn mark_credential_as_proctored(env: &Env, credential_id: u64) -> bool {
         &credential,
     );
 
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (Symbol::new(env, "cred_op"), Symbol::new(env, "proctored")),
+        (credential_id, now),
+    );
+
     true
 }
 
