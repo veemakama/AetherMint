@@ -1,4 +1,5 @@
 use crate::utils::storage::StorageKey;
+use crate::utils::pause::PauseUtils;
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, String,
 };
@@ -82,6 +83,7 @@ impl MarketplaceContract {
         price: u64,
         royalty_bps: u32,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         seller.require_auth();
 
         // Ensure royalty is reasonable (max 30%)
@@ -121,6 +123,7 @@ impl MarketplaceContract {
 
     /// Purchase a listed credential
     pub fn purchase_credential(env: Env, buyer: Address, listing_id: u64) {
+        PauseUtils::require_not_paused(&env);
         buyer.require_auth();
 
         let mut listing: Listing = env
@@ -164,6 +167,7 @@ impl MarketplaceContract {
 
     /// Licensing: Rent a credential for a specific duration
     pub fn rent_credential(env: Env, tenant: Address, credential_id: u64, duration: u64) {
+        PauseUtils::require_not_paused(&env);
         tenant.require_auth();
 
         let price = Self::calculate_bonding_price(env.clone(), credential_id);
@@ -204,6 +208,7 @@ impl MarketplaceContract {
 
     /// Staking: Stake a credential for verification rewards
     pub fn stake_credential(env: Env, staker: Address, credential_id: u64, amount: u64) {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         let stake = Stake {
@@ -226,6 +231,7 @@ impl MarketplaceContract {
 
     /// Claim staking rewards based on reputation
     pub fn claim_rewards(env: Env, staker: Address, credential_id: u64) -> u64 {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         let stake: Stake = env
@@ -264,6 +270,7 @@ impl MarketplaceContract {
 
     /// Automated Dispute Resolution: Open a dispute
     pub fn open_dispute(env: Env, buyer: Address, listing_id: u64, reason: String) -> u64 {
+        PauseUtils::require_not_paused(&env);
         buyer.require_auth();
 
         let dispute_id = env
@@ -298,6 +305,7 @@ impl MarketplaceContract {
 
     /// Resolve a dispute (Admin only)
     pub fn resolve_dispute(env: Env, admin: Address, dispute_id: u64, resolved: bool) {
+        PauseUtils::require_not_paused(&env);
         admin.require_auth();
 
         let stored_admin: Address = env
@@ -329,6 +337,7 @@ impl MarketplaceContract {
 
     /// Escrow: Initiate a secure transaction with time-lock
     pub fn initiate_escrow(env: Env, buyer: Address, listing_id: u64, timeout: u64) -> u64 {
+        PauseUtils::require_not_paused(&env);
         buyer.require_auth();
         
         // Logical escrow ID

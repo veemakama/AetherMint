@@ -1,6 +1,7 @@
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec, BytesN,
 };
+use crate::utils::pause::PauseUtils;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,6 +47,7 @@ impl ProctoringContract {
         assessment_id: String,
         identity_hash: BytesN<32>,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         student.require_auth();
 
         let session_id = env
@@ -87,6 +89,7 @@ impl ProctoringContract {
         event_type: String,
         data_hash: BytesN<32>,
     ) {
+        PauseUtils::require_not_paused(&env);
         let session: AssessmentSession = env
             .storage()
             .instance()
@@ -126,6 +129,7 @@ impl ProctoringContract {
 
     /// Complete the session and lock the result
     pub fn complete_session(env: Env, session_id: u64, result_hash: BytesN<32>) {
+        PauseUtils::require_not_paused(&env);
         let mut session: AssessmentSession = env
             .storage()
             .instance()
@@ -162,6 +166,7 @@ impl ProctoringContract {
         flagged: bool,
         notes_hash: BytesN<32>,
     ) {
+        PauseUtils::require_not_paused(&env);
         proctor.require_auth();
 
         let mut session: AssessmentSession = env

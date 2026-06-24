@@ -1,4 +1,5 @@
 use soroban_sdk::{contracttype, Address, Env, String, Vec, Symbol, Map};
+use crate::utils::pause::PauseUtils;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -75,6 +76,7 @@ impl Governance {
         voting_period: u64,
         quorum: i128,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         proposer.require_auth();
         
         let count: u64 = env.storage().instance()
@@ -113,6 +115,7 @@ impl Governance {
         support: u32,
         voting_power: i128,
     ) {
+        PauseUtils::require_not_paused(&env);
         voter.require_auth();
         
         let mut proposal: Proposal = env.storage().instance()
@@ -139,6 +142,7 @@ impl Governance {
     }
 
     pub fn execute_proposal(env: Env, proposal_id: u64) {
+        PauseUtils::require_not_paused(&env);
         let mut proposal: Proposal = env.storage().instance()
             .get(&GovernanceDataKey::Proposal(proposal_id))
             .expect("Proposal not found");
@@ -175,6 +179,7 @@ impl Governance {
     }
 
     pub fn delegate(env: Env, from: Address, to: Address) {
+        PauseUtils::require_not_paused(&env);
         from.require_auth();
         env.storage().instance().set(&GovernanceDataKey::Delegate(from), &to);
     }
@@ -186,6 +191,7 @@ impl Governance {
     }
 
     pub fn deposit_to_treasury(env: Env, amount: i128) {
+        PauseUtils::require_not_paused(&env);
         let current: i128 = env.storage().instance()
             .get(&GovernanceDataKey::TreasuryBalance)
             .unwrap_or(0);
@@ -194,6 +200,7 @@ impl Governance {
 
     pub fn withdraw_from_treasury(env: Env, amount: i128, recipient: Address) {
         // This should only be called by the contract itself during proposal execution
+        PauseUtils::require_not_paused(&env);
         let current: i128 = env.storage().instance()
             .get(&GovernanceDataKey::TreasuryBalance)
             .unwrap_or(0);

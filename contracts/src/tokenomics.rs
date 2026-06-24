@@ -1,6 +1,7 @@
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, String,
 };
+use crate::utils::pause::PauseUtils;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,6 +55,7 @@ impl TokenomicsContract {
 
     /// Distribute rewards for learning achievements
     pub fn mint_reward(env: Env, recipient: Address, amount: u64) {
+        PauseUtils::require_not_paused(&env);
         // In a real system, the caller would be the Proctoring or Course contract
         // recipient.require_auth(); // No auth needed as we are the "minter" or we'd check admin
         
@@ -74,6 +76,7 @@ impl TokenomicsContract {
 
     /// Stake tokens for course quality / platform rewards
     pub fn stake_tokens(env: Env, staker: Address, amount: u64, lock_duration: u64) {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         // Burn or transfer reward tokens to the stake pool
@@ -114,6 +117,7 @@ impl TokenomicsContract {
 
     /// Claim rewards from staking
     pub fn unstake_and_claim(env: Env, staker: Address) {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         let stake: Stake = env.storage().persistent().get(&TokenomicsKey::StakePool(staker.clone())).unwrap_or_else(|| panic!("No stake found"));
@@ -148,6 +152,7 @@ impl TokenomicsContract {
 
     /// Quadratic Voting for Governance Proposals
     pub fn vote_on_proposal(env: Env, voter: Address, proposal_id: u64, votes_power: u64, approve: bool) {
+        PauseUtils::require_not_paused(&env);
         voter.require_auth();
 
         let gov_balance = Self::get_token_balance(env.clone(), voter.clone(), 1u32); // Governance token
@@ -180,6 +185,7 @@ impl TokenomicsContract {
 
     /// Create a new proposal
     pub fn create_proposal(env: Env, creator: Address, title: String, description: String, duration_seconds: u64) -> u64 {
+        PauseUtils::require_not_paused(&env);
         creator.require_auth();
 
         let id = env.storage().instance().get::<_, u64>(&TokenomicsKey::ProposalCount).unwrap_or(0) + 1;

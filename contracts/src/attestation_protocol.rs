@@ -16,6 +16,7 @@
 use soroban_sdk::{contracterror, contracttype, panic_with_error, Address, BytesN, Env, String, Vec};
 
 use crate::credential_registry;
+use crate::utils::pause::PauseUtils;
 use crate::utils::validation::{
     validate_non_zero_address, validate_optional_string_length, validate_string_length,
     MAX_METADATA_LENGTH, MAX_SHORT_TEXT_LENGTH,
@@ -101,6 +102,7 @@ pub fn register_attester(
     institution_name: String,
     verification_key: BytesN<32>,
 ) {
+    PauseUtils::require_not_paused(env);
     attester_address.require_auth();
     validate_non_zero_address(env, &attester_address);
     validate_string_length(env, &institution_name, MAX_SHORT_TEXT_LENGTH);
@@ -132,6 +134,7 @@ pub fn attest_credential(
     signature: BytesN<64>,
     metadata: String,
 ) {
+    PauseUtils::require_not_paused(env);
     attester.require_auth();
     validate_optional_string_length(env, &metadata, MAX_METADATA_LENGTH);
 
@@ -176,6 +179,7 @@ pub fn attest_credential(
 
 /// Withdraw `attester`'s attestation for `credential_id`.
 pub fn revoke_attestation(env: &Env, attester: Address, credential_id: u64) {
+    PauseUtils::require_not_paused(env);
     attester.require_auth();
 
     let list_key = AttestationKey::Attestations(credential_id);
@@ -251,12 +255,14 @@ pub fn is_registered_attester(env: &Env, attester_address: Address) -> bool {
 
 /// Admin-only: deactivate an attester so it can no longer create attestations.
 pub fn deactivate_attester(env: &Env, admin: Address, attester_address: Address) {
+    PauseUtils::require_not_paused(env);
     require_admin(env, &admin);
     set_attester_active(env, attester_address, false);
 }
 
 /// Admin-only: re-activate a previously deactivated attester.
 pub fn reactivate_attester(env: &Env, admin: Address, attester_address: Address) {
+    PauseUtils::require_not_paused(env);
     require_admin(env, &admin);
     set_attester_active(env, attester_address, true);
 }
