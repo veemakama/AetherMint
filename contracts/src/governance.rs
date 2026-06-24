@@ -1,9 +1,5 @@
-use soroban_sdk::{contracttype, symbol_short, Address, Bytes, Env, String};
-
-use crate::utils::validation::{
-    validate_non_zero_address, validate_string_length,
-    MAX_DESCRIPTION_LENGTH, MAX_TITLE_LENGTH,
-};
+use soroban_sdk::{contracttype, Address, Env, String, Vec, Symbol, Map};
+use crate::utils::pause::PauseUtils;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,6 +89,7 @@ impl Governance {
         voting_period: u64,
         quorum: i128,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         proposer.require_auth();
 
         validate_non_zero_address(&env, &proposer);
@@ -155,6 +152,7 @@ impl Governance {
         support: u32,
         voting_power: i128,
     ) {
+        PauseUtils::require_not_paused(&env);
         voter.require_auth();
         validate_non_zero_address(&env, &voter);
 
@@ -204,8 +202,8 @@ impl Governance {
     }
 
     pub fn execute_proposal(env: Env, proposal_id: u64) {
-        let mut proposal: Proposal = env.storage()
-            .instance()
+        PauseUtils::require_not_paused(&env);
+        let mut proposal: Proposal = env.storage().instance()
             .get(&GovernanceDataKey::Proposal(proposal_id))
             .unwrap_or_else(|| panic!("Proposal not found"));
 
@@ -302,6 +300,7 @@ impl Governance {
     }
 
     pub fn delegate(env: Env, from: Address, to: Address) {
+        PauseUtils::require_not_paused(&env);
         from.require_auth();
         validate_non_zero_address(&env, &from);
         validate_non_zero_address(&env, &to);
@@ -325,39 +324,9 @@ impl Governance {
             .unwrap_or(voter)
     }
 
-    pub fn set_quorum_threshold(env: Env, admin: Address, threshold: i128) {
-        admin.require_auth();
-        if threshold <= 0 {
-            panic!("Quorum must be positive");
-        }
-        env.storage()
-            .instance()
-            .set(&GovernanceDataKey::QuorumThreshold, &threshold);
-
-        let now = env.ledger().timestamp();
-        env.events().publish(
-            (symbol_short!("govern"), symbol_short!("quorum")),
-            (admin, threshold, now),
-        );
-    }
-
-    pub fn set_timelock_delay(env: Env, admin: Address, delay: u64) {
-        admin.require_auth();
-        env.storage()
-            .instance()
-            .set(&GovernanceDataKey::TimelockDelay, &delay);
-
-        let now = env.ledger().timestamp();
-        env.events().publish(
-            (symbol_short!("govern"), symbol_short!("timelock")),
-            (admin, delay, now),
-        );
-    }
-
-    pub fn deposit_to_treasury(env: Env, from: Address, amount: i128) {
-        from.require_auth();
-        let current: i128 = env.storage()
-            .instance()
+    pub fn deposit_to_treasury(env: Env, amount: i128) {
+        PauseUtils::require_not_paused(&env);
+        let current: i128 = env.storage().instance()
             .get(&GovernanceDataKey::TreasuryBalance)
             .unwrap_or(0);
         let new_balance = current + amount;
@@ -373,8 +342,9 @@ impl Governance {
     }
 
     pub fn withdraw_from_treasury(env: Env, amount: i128, recipient: Address) {
-        let current: i128 = env.storage()
-            .instance()
+        // This should only be called by the contract itself during proposal execution
+        PauseUtils::require_not_paused(&env);
+        let current: i128 = env.storage().instance()
             .get(&GovernanceDataKey::TreasuryBalance)
             .unwrap_or(0);
         if current < amount {

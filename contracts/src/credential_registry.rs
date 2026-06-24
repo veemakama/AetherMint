@@ -6,6 +6,7 @@ use crate::utils::validation::{
     validate_duration, validate_non_zero_address, validate_string_length, MAX_DESCRIPTION_LENGTH,
     MAX_SHORT_TEXT_LENGTH, MAX_TITLE_LENGTH, MAX_URI_LENGTH,
 };
+use crate::utils::pause::PauseUtils;
 use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
 /// Credential status enumeration
@@ -101,6 +102,7 @@ pub fn issue_credential_with_expiration(
     ipfs_hash: String,
     validity_duration: u64, // Duration in seconds from issuance
 ) -> u64 {
+    PauseUtils::require_not_paused(env);
     issuer.require_auth();
 
     // Validate inputs before any state access (issue #117).
@@ -182,6 +184,7 @@ pub fn renew_credential(
     renewer: Address,
     extension_duration: u64,
 ) -> bool {
+    PauseUtils::require_not_paused(env);
     renewer.require_auth();
 
     // Validate the extension window before any state access (issue #117).
@@ -364,6 +367,7 @@ pub fn get_renewal_history(env: &Env, credential_id: u64) -> Vec<RenewalRecord> 
 
 /// Revoke a credential
 pub fn revoke_credential(env: &Env, credential_id: u64, revoker: Address) -> bool {
+    PauseUtils::require_not_paused(env);
     revoker.require_auth();
 
     let admin: Address = env
@@ -513,6 +517,7 @@ pub fn issue_credentials_batch(
     issuer: Address,
     params: Vec<BatchCredentialParams>,
 ) -> Vec<u64> {
+    PauseUtils::require_not_paused(env);
     // Single auth check covers the entire batch.
     issuer.require_auth();
 

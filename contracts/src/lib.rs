@@ -7,6 +7,8 @@ use crate::utils::validation::{
     validate_non_zero_address, validate_positive_u64, validate_string_length,
     MAX_DESCRIPTION_LENGTH, MAX_SHORT_TEXT_LENGTH, MAX_TITLE_LENGTH, MAX_URI_LENGTH,
 };
+use crate::utils::pause::PauseUtils;
+use crate::utils::storage::StorageKey;
 
 /// Helper: convert u64 to Soroban String without format! macro
 pub fn u64_to_string(env: &Env, num: u64, prefix: &str) -> String {
@@ -164,6 +166,9 @@ pub mod utils;
 // #[cfg(test)]
 // mod dna_storage_checkpoint_test;
 
+#[cfg(test)]
+mod pause_test;
+
 
 /// Optimized user profile with packed storage
 #[contracttype]
@@ -318,6 +323,7 @@ impl AetherMintContract {
         course_id: String,
         ipfs_hash: String,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         // Validate inputs before any state access (issue #117).
         validate_non_zero_address(&env, &recipient);
         validate_string_length(&env, &title, MAX_TITLE_LENGTH);
@@ -371,6 +377,7 @@ impl AetherMintContract {
     /// (which uses the `CredentialKey` / `"admin"` storage namespace) for
     /// verification to succeed.
     pub fn verify_credential(env: Env, credential_id: u64, verifier: Address) -> bool {
+        PauseUtils::require_not_paused(&env);
         crate::credentials::verify_credential(&env, credential_id, verifier)
     }
 
@@ -389,6 +396,7 @@ impl AetherMintContract {
         description: String,
         price: u64,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         // Validate inputs before any state access (issue #117).
         validate_string_length(&env, &title, MAX_TITLE_LENGTH);
         validate_string_length(&env, &description, MAX_DESCRIPTION_LENGTH);
@@ -488,6 +496,7 @@ impl AetherMintContract {
         ipfs_hash: String,
         validity_duration: u64,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         credential_registry::issue_credential_with_expiration(
             &env, issuer, recipient, title, description, course_id, ipfs_hash, validity_duration
         )
@@ -525,6 +534,7 @@ impl AetherMintContract {
         renewer: Address,
         extension_duration: u64,
     ) -> bool {
+        PauseUtils::require_not_paused(&env);
         credential_registry::renew_credential(&env, credential_id, renewer, extension_duration)
     }
 
@@ -556,6 +566,7 @@ impl AetherMintContract {
 
     /// Revoke a credential (using registry)
     pub fn revoke_credential_registry(env: Env, credential_id: u64, revoker: Address) -> bool {
+        PauseUtils::require_not_paused(&env);
         credential_registry::revoke_credential(&env, credential_id, revoker)
     }
 
@@ -571,6 +582,7 @@ impl AetherMintContract {
 
     /// Batch update expiration status for multiple credentials
     pub fn batch_update_expiration_status(env: Env, credential_ids: Vec<u64>) -> Vec<u64> {
+        PauseUtils::require_not_paused(&env);
         credential_registry::batch_update_expiration_status(&env, credential_ids)
     }
 
@@ -675,6 +687,7 @@ impl AetherMintContract {
         base_uri: String,
         initial_metadata: String,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         dynamic_nft::mint_dynamic_nft(&env, creator, recipient, base_uri, initial_metadata)
     }
 
@@ -685,6 +698,7 @@ impl AetherMintContract {
         achievement_id: u64,
         new_metadata: String,
     ) -> bool {
+        PauseUtils::require_not_paused(&env);
         dynamic_nft::evolve_nft(&env, token_id, achievement_id, new_metadata)
     }
 
@@ -695,11 +709,13 @@ impl AetherMintContract {
         token2_id: u64,
         recipient: Address,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         dynamic_nft::fuse_nfts(&env, token1_id, token2_id, recipient)
     }
 
     /// Transfer NFT to new owner
     pub fn transfer_nft(env: Env, from: Address, to: Address, token_id: u64) {
+        PauseUtils::require_not_paused(&env);
         dynamic_nft::transfer_nft(&env, from, to, token_id)
     }
 
@@ -742,6 +758,7 @@ impl AetherMintContract {
         institution_name: String,
         verification_key: BytesN<32>,
     ) {
+        PauseUtils::require_not_paused(&env);
         attestation_protocol::register_attester(
             &env,
             attester_address,
@@ -758,11 +775,13 @@ impl AetherMintContract {
         signature: BytesN<64>,
         metadata: String,
     ) {
+        PauseUtils::require_not_paused(&env);
         attestation_protocol::attest_credential(&env, attester, credential_id, signature, metadata)
     }
 
     /// Withdraw an attestation previously made by `attester`.
     pub fn revoke_attestation(env: Env, attester: Address, credential_id: u64) {
+        PauseUtils::require_not_paused(&env);
         attestation_protocol::revoke_attestation(&env, attester, credential_id)
     }
 
@@ -791,11 +810,13 @@ impl AetherMintContract {
 
     /// Admin-only: deactivate an attester.
     pub fn deactivate_attester(env: Env, admin: Address, attester_address: Address) {
+        PauseUtils::require_not_paused(&env);
         attestation_protocol::deactivate_attester(&env, admin, attester_address)
     }
 
     /// Admin-only: re-activate a deactivated attester.
     pub fn reactivate_attester(env: Env, admin: Address, attester_address: Address) {
+        PauseUtils::require_not_paused(&env);
         attestation_protocol::reactivate_attester(&env, admin, attester_address)
     }
 
@@ -814,6 +835,7 @@ impl AetherMintContract {
         issuer: Address,
         params: Vec<BatchCredentialParams>,
     ) -> Vec<u64> {
+        PauseUtils::require_not_paused(&env);
         credential_registry::issue_credentials_batch(&env, issuer, params)
     }
 
@@ -822,67 +844,27 @@ impl AetherMintContract {
         MAX_BATCH_SIZE
     }
 
-    // ===== Governance Functions =====
+    // ===== Pause Functionality =====
 
-    /// Create a new governance proposal.
-    pub fn create_proposal(
-        env: Env,
-        proposer: Address,
-        title: String,
-        description: String,
-        action_data: Bytes,
-        voting_period: u64,
-        quorum: i128,
-    ) -> u64 {
-        governance::Governance::create_proposal(
-            env, proposer, title, description, action_data, voting_period, quorum,
-        )
+    /// Pause the contract (Admin only)
+    pub fn pause(env: Env, admin: Address) {
+        let stored_admin: Address = env.storage().instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("Admin not found"));
+        PauseUtils::pause(&env, admin, stored_admin);
     }
 
-    /// Cast a vote on a proposal.
-    pub fn cast_vote(
-        env: Env,
-        voter: Address,
-        proposal_id: u64,
-        support: u32,
-        voting_power: i128,
-    ) {
-        governance::Governance::cast_vote(env, voter, proposal_id, support, voting_power)
+    /// Unpause the contract (Admin only)
+    pub fn unpause(env: Env, admin: Address) {
+        let stored_admin: Address = env.storage().instance()
+            .get(&DataKey::Admin)
+            .unwrap_or_else(|| panic!("Admin not found"));
+        PauseUtils::unpause(&env, admin, stored_admin);
     }
 
-    /// Execute a proposal after the voting period.
-    pub fn execute_proposal(env: Env, proposal_id: u64) {
-        governance::Governance::execute_proposal(env, proposal_id)
-    }
-
-    /// Get proposal details.
-    pub fn get_proposal(env: Env, proposal_id: u64) -> governance::Proposal {
-        governance::Governance::get_proposal(&env, proposal_id)
-    }
-
-    /// Calculate voting power for an address.
-    pub fn get_voting_power(env: Env, voter: Address, token: Address, reputation: u64) -> i128 {
-        governance::Governance::get_voting_power(&env, voter, token, reputation)
-    }
-
-    /// Delegate voting power to another address.
-    pub fn delegate(env: Env, from: Address, to: Address) {
-        governance::Governance::delegate(env, from, to)
-    }
-
-    /// Get the delegate for an address.
-    pub fn get_delegate(env: Env, voter: Address) -> Address {
-        governance::Governance::get_delegate(&env, voter)
-    }
-
-    /// Deposit funds into the governance treasury.
-    pub fn deposit_to_treasury(env: Env, from: Address, amount: i128) {
-        governance::Governance::deposit_to_treasury(env, from, amount)
-    }
-
-    /// Withdraw funds from the governance treasury.
-    pub fn withdraw_from_treasury(env: Env, amount: i128, recipient: Address) {
-        governance::Governance::withdraw_from_treasury(env, amount, recipient)
+    /// Check if the contract is paused
+    pub fn is_paused(env: Env) -> bool {
+        PauseUtils::is_paused(&env)
     }
 
     // ===== Marketplace Functions =====
