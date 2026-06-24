@@ -54,7 +54,7 @@ fn test_proctoring_session_lifecycle() {
     assert_eq!(completed_session.status, proctoring::ProctoringStatus::Completed);
     assert!(client.get_proctoring_result(&session_id).is_some());
 
-    let credential_id = client.issue_proctored_credential(
+    let credential_id = client.issue_proctored_cred_with_exp(
         &admin,
         &student,
         &String::from_str(&env, "Proctored Credential"),
@@ -113,7 +113,7 @@ fn test_challenge_and_resolution_flow() {
     assert!(client.get_proctoring_resolution(&session_id).is_some());
     assert!(client.proctored_credential_is_eligible(&session_id));
 
-    let credential_id = client.issue_proctored_credential(
+    let credential_id = client.issue_proctored_cred_with_exp(
         &admin,
         &student,
         &String::from_str(&env, "Resolved Proctored Credential"),
@@ -163,7 +163,7 @@ fn test_overturned_challenge_blocks_proctored_issuance() {
     assert!(!client.proctored_credential_is_eligible(&session_id));
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        client.issue_proctored_credential(
+        client.issue_proctored_cred_with_exp(
             &admin,
             &student,
             &String::from_str(&env, "Should Fail"),
@@ -280,7 +280,7 @@ fn test_challenge_after_linked_credential_fails() {
         &signature(&env, 13),
     );
 
-    let credential_id = client.issue_proctored_credential(
+    let credential_id = client.issue_proctored_cred_with_exp(
         &admin,
         &student,
         &String::from_str(&env, "Linked Credential"),
