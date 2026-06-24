@@ -7,6 +7,8 @@ import { Redis } from 'ioredis';
 import swaggerUi from 'swagger-ui-express';
 import logger from './utils/logger';
 import requestLogger from './middleware/requestLogger';
+import { errorHandler } from './middleware/errorHandler';
+import { NotFoundError } from './utils/errors';
 import { connectRedis } from './utils/redis';
 import { initWebsocketService } from './services/websocketService';
 import { setSyncWebsocketEmitter } from './services/syncService';
@@ -209,25 +211,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 404 handler
-app.use('*', (req: any, res: any) => {
-  res.status(404).json({
-    success: false,
-    message: 'Endpoint not found',
-    path: req.originalUrl,
-  });
+// 404 catch-all — must come after all route definitions
+import { NotFoundError } from './utils/errors';
+app.use('*', (req: any, _res: any, next: any) => {
+  next(new NotFoundError(`Endpoint not found: ${req.originalUrl}`));
 });
 
-// Global error handler
-app.use((err: any, req: any, res: any, next: any) => {
-  logger.error('Unhandled application error', err);
-
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-  });
-});
+// Centralised error handler — must be last middleware registered (Issue #127)
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 

@@ -14,6 +14,7 @@ import {
   CourseCategory,
 } from "../models/Course";
 import logger from "../utils/logger";
+import { ValidationError } from "../utils/errors";
 
 export const router: Router = Router();
 
@@ -23,15 +24,11 @@ export const router: Router = Router();
 const handleValidationErrors = (
   req: Request,
   res: Response,
-  next: Function,
+  next: NextFunction,
 ) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      errors: errors.array(),
-    });
+    return next(new ValidationError("Validation failed", errors.array()));
   }
   next();
 };
@@ -107,11 +104,7 @@ router.post(
       });
     } catch (error) {
       logger.error("Search error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Search failed",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -152,11 +145,7 @@ router.get(
       });
     } catch (error) {
       logger.error("Suggestions error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to get suggestions",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -190,11 +179,7 @@ router.get(
       });
     } catch (error) {
       logger.error("Trending courses error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to get trending courses",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -238,11 +223,7 @@ router.get(
       });
     } catch (error) {
       logger.error("Similar courses error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to get similar courses",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -306,11 +287,7 @@ router.post(
       });
     } catch (error) {
       logger.error("Recommendations error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to generate recommendations",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -371,11 +348,7 @@ router.post(
       });
     } catch (error) {
       logger.error("Activity recording error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to record activity",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -401,13 +374,9 @@ router.get("/categories", async (req: Request, res: Response) => {
       data: categories,
     });
   } catch (error) {
-    logger.error("Categories error", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to get categories",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
+      logger.error("Categories error", error);
+      return next(error);
+    }
 });
 
 /**
@@ -431,13 +400,9 @@ router.get("/categories/tree", async (req: Request, res: Response) => {
       data: categories,
     });
   } catch (error) {
-    logger.error("Category tree error", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to get category tree",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
+      logger.error("Category tree error", error);
+      return next(error);
+    }
 });
 
 /**
@@ -488,11 +453,7 @@ router.post(
       });
     } catch (error) {
       logger.error("Category creation error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to create category",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -538,11 +499,7 @@ router.put(
       });
     } catch (error) {
       logger.error("Category update error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to update category",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -573,11 +530,7 @@ router.delete(
       });
     } catch (error) {
       logger.error("Category deletion error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to delete category",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -611,11 +564,7 @@ router.get(
       });
     } catch (error) {
       logger.error("Popular searches error", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to get popular searches",
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      return next(error);
     }
   },
 );
@@ -644,13 +593,9 @@ router.get("/analytics/search/:query", async (req: Request, res: Response) => {
       data: analytics,
     });
   } catch (error) {
-    logger.error("Search analytics error", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to get search analytics",
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-  }
+      logger.error("Search analytics error", error);
+      return next(error);
+    }
 });
 
 export default router;
