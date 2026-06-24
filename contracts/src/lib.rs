@@ -1,6 +1,6 @@
 #![no_std]
 extern crate alloc;
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, String, Symbol, Vec};
 
 use crate::credential_registry::{BatchCredentialParams, MAX_BATCH_SIZE};
 use crate::utils::validation::{
@@ -300,6 +300,12 @@ impl AetherMintContract {
         env.storage().instance().set(&DataKey::CredentialCount, &0u64);
         env.storage().instance().set(&DataKey::CourseCount, &0u64);
         env.storage().instance().set(&DataKey::AchievementCount, &0u64);
+
+        let now = env.ledger().timestamp();
+        env.events().publish(
+            (Symbol::new(&env, "contract"), Symbol::new(&env, "initialized")),
+            (admin, now),
+        );
     }
 
     /// Issue a new credential with optimized storage
@@ -416,6 +422,12 @@ impl AetherMintContract {
 
         env.storage().instance().set(&DataKey::Course(course_id), &course);
         env.storage().instance().set(&DataKey::CourseCount, &course_id);
+
+        let now = env.ledger().timestamp();
+        env.events().publish(
+            (Symbol::new(&env, "course"), Symbol::new(&env, "created")),
+            (course_id, instructor, price, now),
+        );
 
         course_id
     }
