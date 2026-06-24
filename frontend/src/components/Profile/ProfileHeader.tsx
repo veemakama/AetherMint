@@ -27,9 +27,9 @@ export function ProfileHeader({ user }: ProfileHeaderProps) {
   };
 
   return (
-    <div className="w-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-8 mb-8 shadow-lg">
+    <div className="w-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 sm:p-8 mb-8 shadow-lg">
       <div className="flex items-start justify-between">
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-6">
           {/* Avatar */}
           <div className="w-24 h-24 rounded-full bg-white/20 border-4 border-white flex items-center justify-center shadow-lg">
             {user.avatar ? (
@@ -74,7 +74,7 @@ export function ProfileHeader({ user }: ProfileHeaderProps) {
             <p className="text-white/80 mb-4">{user.email}</p>
 
             {/* Stats */}
-            <div className="flex gap-8">
+            <div className="flex flex-wrap justify-center sm:justify-start gap-6 sm:gap-8">
               <div>
                 <div className="text-sm text-white/70">Courses Completed</div>
                 <div className="text-2xl font-bold">
