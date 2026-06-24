@@ -4,6 +4,12 @@ import './globals.css';
 // Importing env triggers Zod validation at startup — throws with a clear message if vars are missing/invalid.
 import '@/lib/env';
 import { RootErrorBoundary } from '@/components/providers/RootErrorBoundary';
+// Side-effect import: constructing the performance-monitor singleton registers
+// the Web-Vitals observers. The constructor no-ops during SSR, so importing it
+// here (a Server Component) is safe.
+import '@/lib/performance-monitor';
+import PWAClientShell from '@/components/PWA/PWAClientShell';
+import MobileNavShell from '@/components/Mobile/MobileNavShell';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -17,6 +23,8 @@ export const metadata: Metadata = {
 // off of `metadata` because it is already wired by `next.config.js`
 // (the SW precache references `/manifest.json` directly).
 export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
   themeColor: '#3b82f6',
 };
 
@@ -25,13 +33,6 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // The `performanceMonitor` import above registers Web-Vitals observers
-  // on construction (via its module-level singleton). The original
-  // `if (typeof window !== 'undefined') { void performanceMonitor }`
-  // guard is unnecessary because the constructor already no-ops during
-  // SSR — explicitly touching the singleton was dead code.
-  void performanceMonitor;
-
   return (
     <html lang="en">
       <body className={inter.className}>
@@ -44,7 +45,14 @@ export default function RootLayout({
         {/* PWA wiring (service worker, offline banner, toaster) — all
             client-only so SSR never accesses `navigator`/`localStorage`. */}
         <PWAClientShell />
-        <main id="main-content" role="main" tabIndex={-1}>
+        {/* Mobile navigation (hamburger + bottom bar). The component hides
+            itself on md+ via its own `md:hidden` classes; the client shell
+            supplies the current path + navigate callback from next/navigation. */}
+        <MobileNavShell />
+        {/* Reserve space on mobile so the fixed hamburger (top) and bottom
+            nav bar don't overlap page content; removed at md+ where the
+            mobile nav is hidden. */}
+        <main id="main-content" role="main" tabIndex={-1} className="pt-16 pb-20 md:pt-0 md:pb-0">
           <RootErrorBoundary>
             {children}
           </RootErrorBoundary>
