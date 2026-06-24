@@ -326,7 +326,14 @@ pub fn mint_dynamic_nft(
     let zero_addr = env.current_contract_address();
     env.events().publish(
         (Symbol::new(env, "Transfer"),),
-        (zero_addr, recipient, token_id)
+        (zero_addr, recipient.clone(), token_id)
+    );
+
+    // Emit explicit mint event with creator, recipient, and timestamp
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (Symbol::new(env, "nft"), Symbol::new(env, "minted")),
+        (token_id, creator, recipient, now),
     );
 
     token_id

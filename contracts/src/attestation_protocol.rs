@@ -13,7 +13,7 @@
 //! - It can withdraw with [`revoke_attestation`].
 //! - The contract admin can [`deactivate_attester`] (and [`reactivate_attester`]).
 
-use soroban_sdk::{contracterror, contracttype, panic_with_error, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contracterror, contracttype, panic_with_error, symbol_short, Address, BytesN, Env, String, Vec};
 
 use crate::credential_registry;
 use crate::utils::validation::{
@@ -112,13 +112,19 @@ pub fn register_attester(
 
     let attester = Attester {
         address: attester_address.clone(),
-        institution_name,
+        institution_name: institution_name.clone(),
         verification_key,
         registered_at: env.ledger().timestamp(),
         is_active: true,
         attestation_count: 0,
     };
     env.storage().persistent().set(&key, &attester);
+
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (symbol_short!("attest"), symbol_short!("register")),
+        (attester_address, institution_name, now),
+    );
 }
 
 /// Record an attestation by `attester` for `credential_id`.
@@ -168,10 +174,16 @@ pub fn attest_credential(
     profile.attestation_count += 1;
     env.storage()
         .persistent()
-        .set(&AttestationKey::Attester(attester), &profile);
+        .set(&AttestationKey::Attester(attester.clone()), &profile);
 
     // Keep per-credential attestation tracking in sync (issue #122 integration).
     credential_registry::increment_attestation_count(env, credential_id);
+
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (symbol_short!("attest"), symbol_short!("attested")),
+        (attester, credential_id, now),
+    );
 }
 
 /// Withdraw `attester`'s attestation for `credential_id`.
@@ -209,10 +221,16 @@ pub fn revoke_attestation(env: &Env, attester: Address, credential_id: u64) {
         }
         env.storage()
             .persistent()
-            .set(&AttestationKey::Attester(attester), &profile);
+            .set(&AttestationKey::Attester(attester.clone()), &profile);
     }
 
     credential_registry::decrement_attestation_count(env, credential_id);
+
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (symbol_short!("attest"), symbol_short!("revoke")),
+        (attester, credential_id, now),
+    );
 }
 
 /// All attestations recorded for a credential.
@@ -252,13 +270,25 @@ pub fn is_registered_attester(env: &Env, attester_address: Address) -> bool {
 /// Admin-only: deactivate an attester so it can no longer create attestations.
 pub fn deactivate_attester(env: &Env, admin: Address, attester_address: Address) {
     require_admin(env, &admin);
-    set_attester_active(env, attester_address, false);
+    set_attester_active(env, attester_address.clone(), false);
+
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (symbol_short!("attest"), symbol_short!("deact")),
+        (admin, attester_address, now),
+    );
 }
 
 /// Admin-only: re-activate a previously deactivated attester.
 pub fn reactivate_attester(env: &Env, admin: Address, attester_address: Address) {
     require_admin(env, &admin);
-    set_attester_active(env, attester_address, true);
+    set_attester_active(env, attester_address.clone(), true);
+
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (symbol_short!("attest"), symbol_short!("react")),
+        (admin, attester_address, now),
+    );
 }
 
 fn set_attester_active(env: &Env, attester_address: Address, active: bool) {

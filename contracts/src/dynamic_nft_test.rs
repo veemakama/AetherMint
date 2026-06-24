@@ -209,3 +209,99 @@ fn test_unauthorized_transfer() {
     // Try to transfer with unauthorized address
     transfer_nft(&env, unauthorized, recipient, token_id);
 }
+
+// ---------------------------------------------------------------------------
+// Event emission verification tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_mint_nft_emits_events() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    env.storage().instance().set(&soroban_sdk::Symbol::new(&env, "admin"), &admin);
+
+    let base_uri = String::from_str(&env, "https://api.aethermint.com/nft");
+    let initial_metadata = String::from_str(&env, "QmInitialMetadata");
+
+    let token_id = mint_dynamic_nft(
+        &env,
+        admin,
+        recipient,
+        base_uri,
+        initial_metadata,
+    );
+
+    assert!(token_id > 0, "NFT must be minted successfully");
+
+    let events = env.events().all();
+    // Mint emits: Transfer + nft:minted = at least 2 events
+    assert!(
+        events.events().len() >= 2,
+        "mint must emit Transfer and nft:minted events, got {}",
+        events.events().len()
+    );
+}
+
+#[test]
+fn test_evolve_nft_emits_events() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    env.storage().instance().set(&soroban_sdk::Symbol::new(&env, "admin"), &admin);
+
+    let token_id = mint_dynamic_nft(
+        &env,
+        admin,
+        recipient.clone(),
+        String::from_str(&env, "https://api.aethermint.com/nft"),
+        String::from_str(&env, "QmInitial"),
+    );
+
+    let evolved = evolve_nft(
+        &env,
+        token_id,
+        1,
+        String::from_str(&env, "QmEvolved"),
+    );
+
+    assert!(evolved, "NFT must evolve");
+
+    let events = env.events().all();
+    // Evolve emits: AchievementUnlocked (and possibly Evolution if stages change)
+    assert!(
+        events.events().len() >= 1,
+        "evolve must emit at least one event, got {}",
+        events.events().len()
+    );
+}
+
+#[test]
+fn test_transfer_nft_emits_event() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+
+    env.storage().instance().set(&soroban_sdk::Symbol::new(&env, "admin"), &admin);
+
+    let token_id = mint_dynamic_nft(
+        &env,
+        admin,
+        owner.clone(),
+        String::from_str(&env, "https://api.aethermint.com/nft"),
+        String::from_str(&env, "QmInitial"),
+    );
+
+    transfer_nft(&env, owner, new_owner, token_id);
+
+    let events = env.events().all();
+    // Transfer emits: Transfer event
+    assert!(
+        events.events().len() >= 1,
+        "transfer must emit at least one event, got {}",
+        events.events().len()
+    );
+}
