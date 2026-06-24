@@ -3,6 +3,7 @@ extern crate alloc;
 use soroban_sdk::{contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, String, Vec};
 
 use crate::credential_registry::{BatchCredentialParams, MAX_BATCH_SIZE};
+use crate::utils::storage::{MigrationRecord, StorageVersion};
 use crate::utils::validation::{
     validate_non_zero_address, validate_positive_u64, validate_string_length,
     MAX_DESCRIPTION_LENGTH, MAX_SHORT_TEXT_LENGTH, MAX_TITLE_LENGTH, MAX_URI_LENGTH,
@@ -296,6 +297,12 @@ impl AetherMintContract {
         env.storage().instance().set(&DataKey::CredentialCount, &0u64);
         env.storage().instance().set(&DataKey::CourseCount, &0u64);
         env.storage().instance().set(&DataKey::AchievementCount, &0u64);
+
+        // Stamp the storage schema version (issue #120). Initializing here
+        // means every later call into durable storage goes through
+        // StorageVersion::require_compatible_version and is rejected if the
+        // on-disk version isn't supported by this binary.
+        StorageVersion::initialize(&env);
     }
 
     /// Issue a new credential with optimized storage
@@ -478,7 +485,7 @@ impl AetherMintContract {
     }
 
     /// Issue a proctored credential and link it to a completed proctoring session.
-    pub fn issue_proctored_credential_with_expiration(
+    pub fn issue_proctored_cred_with_exp(
         env: Env,
         issuer: Address,
         recipient: Address,
@@ -489,7 +496,7 @@ impl AetherMintContract {
         validity_duration: u64,
         session_id: u64,
     ) -> u64 {
-        credential_registry::issue_proctored_credential_with_expiration(
+        credential_registry::issue_proctored_cred_with_exp(
             &env,
             issuer,
             recipient,
@@ -805,6 +812,28 @@ impl AetherMintContract {
     pub fn max_batch_size(_env: Env) -> u32 {
         MAX_BATCH_SIZE
     }
+
+    // ===== Storage Versioning (issue #120) =====
+
+    /// Return the current storage schema version. Equivalent to calling
+    /// [`StorageVersion::get_storage_version`].
+    pub fn storage_version(env: Env) -> u32 {
+        StorageVersion::get_storage_version(&env)
+    }
+
+    /// Admin-triggered migration to a newer storage layout. Performs the
+    /// version-to-version data transformation registered for the requested
+    /// `(current, new_version)` pair and appends a [`MigrationRecord`] to the
+    /// audit log. The caller must authorize as the contract admin.
+    pub fn migrate_storage(env: Env, admin: Address, new_version: u32) {
+        StorageVersion::migrate(&env, admin, new_version);
+    }
+
+    /// Read the migration audit log. Empty before any migrations have run.
+    pub fn migration_history(env: Env) -> Vec<MigrationRecord> {
+        StorageVersion::migration_history(&env)
+    }
+
 
     // ===== Governance Functions =====
 
