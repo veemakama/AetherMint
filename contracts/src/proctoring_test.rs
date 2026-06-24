@@ -1,4 +1,5 @@
 #![cfg(test)]
+extern crate std;
 
 use crate::{
     credential_registry, proctoring, AetherMintContract, AetherMintContractClient,

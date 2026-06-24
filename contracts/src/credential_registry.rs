@@ -6,6 +6,7 @@ use crate::utils::validation::{
     validate_duration, validate_non_zero_address, validate_string_length, MAX_DESCRIPTION_LENGTH,
     MAX_SHORT_TEXT_LENGTH, MAX_TITLE_LENGTH, MAX_URI_LENGTH,
 };
+use crate::utils::pause::PauseUtils;
 use soroban_sdk::{contracttype, Address, Env, String, Symbol, Vec};
 
 /// Credential status enumeration
@@ -638,6 +639,12 @@ pub fn mark_credential_as_proctored(env: &Env, credential_id: u64) -> bool {
     env.storage().persistent().set(
         &CredentialRegistryKey::Credential(credential_id),
         &credential,
+    );
+
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (Symbol::new(env, "cred_op"), Symbol::new(env, "proctored")),
+        (credential_id, now),
     );
 
     true

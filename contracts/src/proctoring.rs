@@ -13,6 +13,7 @@ use crate::DataKey;
 use soroban_sdk::{
     contracterror, contracttype, panic_with_error, symbol_short, Address, BytesN, Env, String,
 };
+use crate::utils::pause::PauseUtils;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -66,70 +67,79 @@ pub struct ProctoringSession {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProctoringResult {
     pub session_id: u64,
-    pub result_data: String,
-    pub proctor_signature: BytesN<64>,
-    pub submitted_at: u64,
+    pub timestamp: u64,
+    pub event_type: String,
+    pub data_hash: BytesN<32>, // Hash of encrypted behavioral data
 }
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProctoringChallenge {
-    pub session_id: u64,
-    pub challenger: Address,
-    pub evidence: String,
-    pub challenged_at: u64,
-}
+// Contract attribute disabled - this is a module used by main contract in lib.rs
+// #[contract]
+pub struct ProctoringContract;
 
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProctoringResolutionRecord {
-    pub session_id: u64,
-    pub admin: Address,
-    pub resolution: ChallengeResolution,
-    pub resolved_at: u64,
-}
+#[contractimpl]
+impl ProctoringContract {
+    /// Initialize a new assessment session
+    pub fn start_session(
+        env: Env,
+        student: Address,
+        assessment_id: String,
+        identity_hash: BytesN<32>,
+    ) -> u64 {
+        PauseUtils::require_not_paused(&env);
+        student.require_auth();
 
-#[contracttype]
-pub enum ProctoringKey {
-    Session(u64),
-    SessionResult(u64),
-    SessionChallenge(u64),
-    SessionResolution(u64),
-    SessionCredential(u64),
-    SessionCount,
-}
+        let session_id = env
+            .storage()
+            .instance()
+            .get(&ProctoringKey::SessionCount)
+            .unwrap_or(0u64)
+            + 1;
 
-fn require_admin(env: &Env, admin: &Address) {
-    admin.require_auth();
-    let stored_admin: Address = env
-        .storage()
-        .instance()
-        .get(&DataKey::Admin)
-        .unwrap_or_else(|| panic_with_error!(env, ProctoringError::AdminNotSet));
-    if &stored_admin != admin {
-        panic_with_error!(env, ProctoringError::Unauthorized);
+        let session = AssessmentSession {
+            id: session_id,
+            student: student.clone(),
+            assessment_id,
+            start_time: env.ledger().timestamp(),
+            end_time: None,
+            identity_hash,
+            status: 1, // Active
+        };
+
+        env.storage()
+            .instance()
+            .set(&ProctoringKey::Session(session_id), &session);
+        env.storage()
+            .instance()
+            .set(&ProctoringKey::SessionCount, &session_id);
+
+        env.events().publish(
+            (symbol_short!("proctor"), symbol_short!("start")),
+            (session_id, student),
+        );
+
+        session_id
     }
 }
 
-fn require_session(env: &Env, session_id: u64) -> ProctoringSession {
-    env.storage()
-        .persistent()
-        .get(&ProctoringKey::Session(session_id))
-        .unwrap_or_else(|| panic_with_error!(env, ProctoringError::SessionNotFound))
-}
+    /// Log a behavioral event for the audit trail
+    pub fn log_behavioral_event(
+        env: Env,
+        session_id: u64,
+        event_type: String,
+        data_hash: BytesN<32>,
+    ) {
+        PauseUtils::require_not_paused(&env);
+        let session: AssessmentSession = env
+            .storage()
+            .instance()
+            .get(&ProctoringKey::Session(session_id))
+            .unwrap_or_else(|| panic!("Session not found"));
 
-fn store_session(env: &Env, session: &ProctoringSession) {
-    env.storage()
-        .persistent()
-        .set(&ProctoringKey::Session(session.id), session);
-}
+        session.student.require_auth();
 
-fn latest_session_id(env: &Env) -> u64 {
-    env.storage()
-        .instance()
-        .get(&ProctoringKey::SessionCount)
-        .unwrap_or(0)
-}
+        if session.status != 1 {
+            panic!("Session is not active");
+        }
 
 fn set_session_count(env: &Env, session_id: u64) {
     env.storage()
@@ -194,13 +204,14 @@ pub fn submit_proctoring_result(
         panic_with_error!(env, ProctoringError::InvalidSessionState);
     }
 
-    if env
-        .storage()
-        .persistent()
-        .has(&ProctoringKey::SessionResult(session_id))
-    {
-        panic_with_error!(env, ProctoringError::ResultAlreadySubmitted);
-    }
+    /// Complete the session and lock the result
+    pub fn complete_session(env: Env, session_id: u64, result_hash: BytesN<32>) {
+        PauseUtils::require_not_paused(&env);
+        let mut session: AssessmentSession = env
+            .storage()
+            .instance()
+            .get(&ProctoringKey::Session(session_id))
+            .unwrap_or_else(|| panic!("Session not found"));
 
     session.status = ProctoringStatus::InProgress;
     store_session(env, &session);
@@ -243,9 +254,26 @@ pub fn challenge_proctoring_result(
         panic_with_error!(env, ProctoringError::CredentialAlreadyLinked);
     }
 
-    if session.status != ProctoringStatus::Completed {
-        panic_with_error!(env, ProctoringError::InvalidSessionState);
-    }
+    /// Proctor attestation for high-stakes exams
+    pub fn attest_session(
+        env: Env,
+        proctor: Address,
+        session_id: u64,
+        flagged: bool,
+        notes_hash: BytesN<32>,
+    ) {
+        PauseUtils::require_not_paused(&env);
+        proctor.require_auth();
+
+        let mut session: AssessmentSession = env
+            .storage()
+            .instance()
+            .get(&ProctoringKey::Session(session_id))
+            .unwrap_or_else(|| panic!("Session not found"));
+
+        if flagged {
+            session.status = 3; // Flagged
+        }
 
     if env
         .storage()
