@@ -4,6 +4,7 @@ use crate::utils::validation::{
     validate_distinct_addresses, validate_non_zero_address, validate_optional_string_length,
     validate_string_length, MAX_METADATA_LENGTH, MAX_URI_LENGTH,
 };
+use crate::utils::pause::PauseUtils;
 
 /// Contract version for upgradeable pattern
 #[contracttype]
@@ -76,7 +77,7 @@ pub struct VisualTraits {
 
 /// Evolution stages
 #[contracttype]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EvolutionStage {
     Novice = 0,
     Apprentice = 1,
@@ -88,7 +89,7 @@ pub enum EvolutionStage {
 
 /// Rarity tiers for visual representation
 #[contracttype]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RarityTier {
     Common = 0,
     Uncommon = 1,
@@ -190,6 +191,7 @@ pub fn get_contract_version(env: &Env) -> ContractVersion {
 
 /// Upgrade contract to new version
 pub fn upgrade_contract(env: &Env, new_version: ContractVersion, implementation_hash: String) -> bool {
+    PauseUtils::require_not_paused(env);
     let admin: Address = env.storage().instance()
         .get(&soroban_sdk::Symbol::new(env, "admin"))
         .unwrap_or_else(|| panic!("Admin not found"));
@@ -232,6 +234,7 @@ pub fn verify_ipfs_metadata(env: &Env, metadata: &IPFSMetadata) -> bool {
 
 /// Store enhanced metadata with IPFS verification
 pub fn store_enhanced_metadata(env: &Env, token_id: u64, metadata: EnhancedMetadata) -> bool {
+    PauseUtils::require_not_paused(env);
     if !verify_ipfs_metadata(env, &metadata.ipfs_metadata) {
         panic!("Invalid IPFS metadata");
     }
@@ -268,6 +271,7 @@ pub fn mint_dynamic_nft(
     base_uri: String,
     initial_metadata: String,
 ) -> u64 {
+    PauseUtils::require_not_paused(env);
     creator.require_auth();
 
     // Validate inputs before any state access (issue #117).
@@ -326,7 +330,14 @@ pub fn mint_dynamic_nft(
     let zero_addr = env.current_contract_address();
     env.events().publish(
         (Symbol::new(env, "Transfer"),),
-        (zero_addr, recipient, token_id)
+        (zero_addr, recipient.clone(), token_id)
+    );
+
+    // Emit explicit mint event with creator, recipient, and timestamp
+    let now = env.ledger().timestamp();
+    env.events().publish(
+        (Symbol::new(env, "nft"), Symbol::new(env, "minted")),
+        (token_id, creator, recipient, now),
     );
 
     token_id
@@ -339,6 +350,7 @@ pub fn evolve_nft(
     achievement_id: u64,
     new_metadata: String,
 ) -> bool {
+    PauseUtils::require_not_paused(env);
     // Validate inputs before any state access (issue #117).
     validate_optional_string_length(env, &new_metadata, MAX_METADATA_LENGTH);
 
@@ -409,6 +421,7 @@ pub fn fuse_nfts(
     token2_id: u64,
     recipient: Address,
 ) -> u64 {
+    PauseUtils::require_not_paused(env);
     // Validate inputs before any state access (issue #117).
     validate_non_zero_address(env, &recipient);
     if token1_id == token2_id {
@@ -482,6 +495,7 @@ pub fn fuse_nfts(
 
 /// Transfer NFT to new owner
 pub fn transfer_nft(env: &Env, from: Address, to: Address, token_id: u64) {
+    PauseUtils::require_not_paused(env);
     from.require_auth();
 
     // Validate inputs before any state access (issue #117).

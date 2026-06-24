@@ -1,4 +1,6 @@
 #![cfg(test)]
+use alloc::format;
+use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Address, Env, String, Vec};
 use crate::dynamic_nft::{
     mint_dynamic_nft, evolve_nft, fuse_nfts, transfer_nft, get_nft, 
@@ -18,12 +20,12 @@ fn test_mint_dynamic_nft() {
     let base_uri = String::from_str(&env, "https://api.aethermint.com/nft");
     let initial_metadata = String::from_str(&env, "QmInitialMetadata");
     
-    let token_id = mint_dynamic_nft(&env, admin, recipient.clone(), base_uri.clone(), initial_metadata.clone());
+    let token_id = mint_dynamic_nft(&env, admin.clone(), recipient.clone(), base_uri.clone(), initial_metadata.clone());
     
     assert!(token_id > 0);
     assert!(nft_exists(&env, token_id));
-    assert_eq!(owner_of(&env, token_id), recipient);
-    assert_eq!(balance_of(&env, recipient), 1);
+    assert_eq!(owner_of(&env, token_id), recipient.clone());
+    assert_eq!(balance_of(&env, recipient.clone()), 1);
     assert_eq!(get_total_supply(&env), 1);
     
     let nft = get_nft(&env, token_id);
@@ -78,7 +80,7 @@ fn test_multiple_evolutions() {
     
     // Add multiple achievements to trigger evolution
     for i in 1..=20 {
-        let new_metadata = String::from_str(&env, &format!("QmMetadata{}", i));
+        let new_metadata = String::from_str(&env, &alloc::format!("QmMetadata{}", i));
         evolve_nft(&env, token_id, i, new_metadata);
     }
     
@@ -98,7 +100,7 @@ fn test_fuse_nfts() {
     let base_uri = String::from_str(&env, "https://api.aethermint.com/nft");
     
     // Mint two NFTs
-    let token1_id = mint_dynamic_nft(&env, admin, recipient.clone(), base_uri.clone(), String::from_str(&env, "QmMetadata1"));
+    let token1_id = mint_dynamic_nft(&env, admin.clone(), recipient.clone(), base_uri.clone(), String::from_str(&env, "QmMetadata1"));
     let token2_id = mint_dynamic_nft(&env, admin, recipient.clone(), base_uri, String::from_str(&env, "QmMetadata2"));
     
     // Evolve both NFTs
@@ -157,7 +159,8 @@ fn test_token_uri() {
     let token_id = mint_dynamic_nft(&env, admin, recipient, base_uri.clone(), initial_metadata.clone());
     
     let uri = token_uri(&env, token_id);
-    assert_eq!(uri, format!("{}/{}", base_uri, initial_metadata));
+    let expected = String::from_str(&env, &alloc::format!("{}/{}", base_uri, initial_metadata));
+    assert_eq!(uri, expected);
 }
 
 #[test]
@@ -171,7 +174,7 @@ fn test_get_owner_tokens() {
     let base_uri = String::from_str(&env, "https://api.aethermint.com/nft");
     
     // Mint multiple NFTs
-    let token1_id = mint_dynamic_nft(&env, admin, recipient.clone(), base_uri.clone(), String::from_str(&env, "QmMetadata1"));
+    let token1_id = mint_dynamic_nft(&env, admin.clone(), recipient.clone(), base_uri.clone(), String::from_str(&env, "QmMetadata1"));
     let token2_id = mint_dynamic_nft(&env, admin, recipient.clone(), base_uri, String::from_str(&env, "QmMetadata2"));
     
     let owner_tokens = get_owner_tokens(&env, recipient);
@@ -205,4 +208,100 @@ fn test_unauthorized_transfer() {
     
     // Try to transfer with unauthorized address
     transfer_nft(&env, unauthorized, recipient, token_id);
+}
+
+// ---------------------------------------------------------------------------
+// Event emission verification tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_mint_nft_emits_events() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    env.storage().instance().set(&soroban_sdk::Symbol::new(&env, "admin"), &admin);
+
+    let base_uri = String::from_str(&env, "https://api.aethermint.com/nft");
+    let initial_metadata = String::from_str(&env, "QmInitialMetadata");
+
+    let token_id = mint_dynamic_nft(
+        &env,
+        admin,
+        recipient,
+        base_uri,
+        initial_metadata,
+    );
+
+    assert!(token_id > 0, "NFT must be minted successfully");
+
+    let events = env.events().all();
+    // Mint emits: Transfer + nft:minted = at least 2 events
+    assert!(
+        events.events().len() >= 2,
+        "mint must emit Transfer and nft:minted events, got {}",
+        events.events().len()
+    );
+}
+
+#[test]
+fn test_evolve_nft_emits_events() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    env.storage().instance().set(&soroban_sdk::Symbol::new(&env, "admin"), &admin);
+
+    let token_id = mint_dynamic_nft(
+        &env,
+        admin,
+        recipient.clone(),
+        String::from_str(&env, "https://api.aethermint.com/nft"),
+        String::from_str(&env, "QmInitial"),
+    );
+
+    let evolved = evolve_nft(
+        &env,
+        token_id,
+        1,
+        String::from_str(&env, "QmEvolved"),
+    );
+
+    assert!(evolved, "NFT must evolve");
+
+    let events = env.events().all();
+    // Evolve emits: AchievementUnlocked (and possibly Evolution if stages change)
+    assert!(
+        events.events().len() >= 1,
+        "evolve must emit at least one event, got {}",
+        events.events().len()
+    );
+}
+
+#[test]
+fn test_transfer_nft_emits_event() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+
+    env.storage().instance().set(&soroban_sdk::Symbol::new(&env, "admin"), &admin);
+
+    let token_id = mint_dynamic_nft(
+        &env,
+        admin,
+        owner.clone(),
+        String::from_str(&env, "https://api.aethermint.com/nft"),
+        String::from_str(&env, "QmInitial"),
+    );
+
+    transfer_nft(&env, owner, new_owner, token_id);
+
+    let events = env.events().all();
+    // Transfer emits: Transfer event
+    assert!(
+        events.events().len() >= 1,
+        "transfer must emit at least one event, got {}",
+        events.events().len()
+    );
 }
