@@ -518,6 +518,100 @@ fn test_voting_power_with_reputation() {
     assert_eq!(power2, 100);
 }
 
+// ---------------------------------------------------------------------------
+// Event emission verification tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_create_proposal_emits_event() {
+    let (env, admin, cid) = setup_env();
+
+    with_contract(&env, &cid, || {
+        create_proposal(
+            env.clone(),
+            admin,
+            String::from_str(&env, "Event Test Proposal"),
+            String::from_str(&env, "Verify events are emitted"),
+            Bytes::new(&env),
+            86400,
+            100,
+        );
+    });
+
+    let events = env.events().all();
+    assert!(events.events().len() > 0, "create_proposal must emit events");
+}
+
+#[test]
+fn test_cast_vote_emits_event() {
+    let (env, admin, cid) = setup_env();
+    let voter = Address::generate(&env);
+
+    let id = with_contract(&env, &cid, || {
+        create_proposal(
+            env.clone(),
+            admin,
+            String::from_str(&env, "Vote Event Test"),
+            String::from_str(&env, "Check vote event"),
+            Bytes::new(&env),
+            86400,
+            100,
+        )
+    });
+
+    with_contract(&env, &cid, || {
+        cast_vote(env.clone(), voter, id, 1, 500);
+    });
+
+    let events = env.events().all();
+    assert!(events.events().len() > 1, "cast_vote must emit additional events");
+}
+
+#[test]
+fn test_execute_proposal_emits_event() {
+    let (env, admin, cid) = setup_env();
+    let voter = Address::generate(&env);
+
+    let start_time = 1000u64;
+    env.ledger().set_timestamp(start_time);
+
+    let id = with_contract(&env, &cid, || {
+        let id = create_proposal(
+            env.clone(),
+            admin.clone(),
+            String::from_str(&env, "Execute Event Test"),
+            String::from_str(&env, "Check execution event"),
+            Bytes::new(&env),
+            3600,
+            50,
+        );
+        cast_vote(env.clone(), voter.clone(), id, 1, 100);
+        env.ledger().set_timestamp(start_time + 3601);
+        execute_proposal(env.clone(), id);
+        id
+    });
+
+    let proposal = with_contract(&env, &cid, || get_proposal(&env, id));
+    assert_eq!(proposal.status, ProposalStatus::Succeeded);
+
+    let events = env.events().all();
+    assert!(events.events().len() > 0, "execute_proposal must emit events");
+}
+
+#[test]
+fn test_delegate_emits_event() {
+    let (env, _admin, cid) = setup_env();
+    let from = Address::generate(&env);
+    let to = Address::generate(&env);
+
+    with_contract(&env, &cid, || {
+        Governance::delegate(env.clone(), from, to);
+    });
+
+    let events = env.events().all();
+    assert!(events.events().len() > 0, "delegate must emit events");
+}
+
 #[test]
 fn test_set_quorum_and_timelock() {
     let (env, admin, cid) = setup_env();

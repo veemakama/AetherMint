@@ -1,4 +1,6 @@
+use crate::dynamic_fees::calculate_marketplace_fee;
 use crate::utils::storage::StorageKey;
+use crate::utils::pause::PauseUtils;
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, Address, Env, String,
 };
@@ -7,23 +9,50 @@ use soroban_sdk::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MarketplaceKey {
     Listing(u64),
+    Escrow(u64),
     Rental(u64, Address),
     Stake(u64, Address),
     Dispute(u64),
     MarketplaceCount,
     ListingCount,
+    EscrowCount,
     DisputeCount,
-    TradeCount(u64), // Trade count per credential for bonding curve
+    TradeCount(u64),
+    ItemListed(u64, u32),
 }
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Listing {
-    pub credential_id: u64,
+pub enum ItemType {
+    Credential = 0,
+    Course = 1,
+    NFT = 2,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ItemListing {
     pub seller: Address,
     pub price: u64,
-    pub royalty_bps: u32, // Basis points (100 = 1%)
-    pub active: bool,
+    pub item_id: u64,
+    pub item_type: u32,
+    pub status: u32,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub escrow_id: u64,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Escrow {
+    pub listing_id: u64,
+    pub buyer: Address,
+    pub seller: Address,
+    pub amount: u64,
+    pub status: u32,
+    pub created_at: u64,
+    pub platform_fee: u64,
+    pub seller_amount: u64,
 }
 
 #[contracttype]
@@ -51,28 +80,25 @@ pub struct Dispute {
     pub listing_id: u64,
     pub buyer: Address,
     pub reason: String,
-    pub status: u32, // 0: Open, 1: Resolved, 2: Cancelled
+    pub status: u32,
 }
 
-// Contract attribute disabled - this is a module used by main contract in lib.rs
-// #[contract]
-pub struct MarketplaceContract;
-
-#[contractimpl]
-impl MarketplaceContract {
-    /// Initialize the marketplace
-    pub fn initialize(env: Env, admin: Address) {
-        if env.storage().instance().has(&StorageKey::Admin) {
-            panic!("Already initialized");
-        }
-        env.storage().instance().set(&StorageKey::Admin, &admin);
-        env.storage()
-            .instance()
-            .set(&MarketplaceKey::ListingCount, &0u64);
-        env.storage()
-            .instance()
-            .set(&MarketplaceKey::DisputeCount, &0u64);
+/// Initialize the marketplace
+pub fn initialize(env: &Env, admin: &Address) {
+    if env.storage().instance().has(&StorageKey::Admin) {
+        panic!("Already initialized");
     }
+    env.storage().instance().set(&StorageKey::Admin, admin);
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::ListingCount, &0u64);
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::EscrowCount, &0u64);
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::DisputeCount, &0u64);
+}
 
     /// List a credential for sale with royalties
     pub fn list_credential(
@@ -82,6 +108,7 @@ impl MarketplaceContract {
         price: u64,
         royalty_bps: u32,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         seller.require_auth();
 
         // Ensure royalty is reasonable (max 30%)
@@ -118,9 +145,66 @@ impl MarketplaceContract {
 
         listing_id
     }
+    if item_type > 2 {
+        panic!("Invalid item type");
+    }
+
+    let dup_key = MarketplaceKey::ItemListed(item_id, item_type);
+    if env.storage().instance().has(&dup_key) {
+        panic!("Item already listed");
+    }
+
+    let listing_id = env
+        .storage()
+        .instance()
+        .get(&MarketplaceKey::ListingCount)
+        .unwrap_or(0u64)
+        + 1;
+
+    let now = env.ledger().timestamp();
+
+    let listing = ItemListing {
+        seller: seller.clone(),
+        price,
+        item_id,
+        item_type,
+        status: 0,
+        created_at: now,
+        updated_at: now,
+        escrow_id: 0,
+    };
+
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::Listing(listing_id), &listing);
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::ListingCount, &listing_id);
+    env.storage()
+        .instance()
+        .set(&dup_key, &true);
+
+    env.events().publish(
+        (symbol_short!("market"), symbol_short!("listed")),
+        (listing_id, item_id, seller.clone(), price),
+    );
+
+    listing_id
+}
+
+/// Buy an item — transfers ownership with escrow holding funds
+pub fn buy_item(env: &Env, buyer: &Address, listing_id: u64) {
+    buyer.require_auth();
+
+    let mut listing: ItemListing = env
+        .storage()
+        .instance()
+        .get(&MarketplaceKey::Listing(listing_id))
+        .unwrap_or_else(|| panic!("Listing not found"));
 
     /// Purchase a listed credential
     pub fn purchase_credential(env: Env, buyer: Address, listing_id: u64) {
+        PauseUtils::require_not_paused(&env);
         buyer.require_auth();
 
         let mut listing: Listing = env
@@ -164,6 +248,7 @@ impl MarketplaceContract {
 
     /// Licensing: Rent a credential for a specific duration
     pub fn rent_credential(env: Env, tenant: Address, credential_id: u64, duration: u64) {
+        PauseUtils::require_not_paused(&env);
         tenant.require_auth();
 
         let price = Self::calculate_bonding_price(env.clone(), credential_id);
@@ -187,23 +272,94 @@ impl MarketplaceContract {
         );
     }
 
-    /// Bonding curve logic for price discovery
-    /// Price = BasePrice + (Slope * Trades^2)
-    pub fn calculate_bonding_price(env: Env, credential_id: u64) -> u64 {
-        let base_price = 100u64; // Minimum price
-        let slope = 10u64;
+    let escrow_id = env
+        .storage()
+        .instance()
+        .get(&MarketplaceKey::EscrowCount)
+        .unwrap_or(0u64)
+        + 1;
 
-        let trades: u64 = env
-            .storage()
-            .instance()
-            .get(&MarketplaceKey::TradeCount(credential_id))
-            .unwrap_or(0);
+    let platform_fee = calculate_marketplace_fee(
+        env.clone(),
+        listing.seller.clone(),
+        listing.price,
+    );
 
-        base_price + slope * trades * trades
+    let seller_amount = listing.price - platform_fee;
+
+    let now = env.ledger().timestamp();
+
+    let escrow = Escrow {
+        listing_id,
+        buyer: buyer.clone(),
+        seller: listing.seller.clone(),
+        amount: listing.price,
+        status: 0,
+        created_at: now,
+        platform_fee,
+        seller_amount,
+    };
+
+    listing.status = 1;
+    listing.updated_at = now;
+    listing.escrow_id = escrow_id;
+
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::Listing(listing_id), &listing);
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::Escrow(escrow_id), &escrow);
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::EscrowCount, &escrow_id);
+
+    let trade_count: u64 = env
+        .storage()
+        .instance()
+        .get(&MarketplaceKey::TradeCount(listing.item_id))
+        .unwrap_or(0);
+    env.storage().instance().set(
+        &MarketplaceKey::TradeCount(listing.item_id),
+        &(trade_count + 1),
+    );
+
+    env.events().publish(
+        (symbol_short!("market"), symbol_short!("purchased")),
+        (listing_id, buyer.clone(), escrow_id, listing.price),
+    );
+}
+
+/// Cancel an active listing by the seller
+pub fn cancel_listing(env: &Env, seller: &Address, listing_id: u64) {
+    seller.require_auth();
+
+    let mut listing: ItemListing = env
+        .storage()
+        .instance()
+        .get(&MarketplaceKey::Listing(listing_id))
+        .unwrap_or_else(|| panic!("Listing not found"));
+
+    if listing.seller != *seller {
+        panic!("Only the seller can cancel");
     }
+    if listing.status != 0 {
+        panic!("Listing is not active");
+    }
+
+    listing.status = 2;
+    listing.updated_at = env.ledger().timestamp();
+
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::Listing(listing_id), &listing);
+
+    let dup_key = MarketplaceKey::ItemListed(listing.item_id, listing.item_type);
+    env.storage().instance().remove(&dup_key);
 
     /// Staking: Stake a credential for verification rewards
     pub fn stake_credential(env: Env, staker: Address, credential_id: u64, amount: u64) {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         let stake = Stake {
@@ -226,6 +382,7 @@ impl MarketplaceContract {
 
     /// Claim staking rewards based on reputation
     pub fn claim_rewards(env: Env, staker: Address, credential_id: u64) -> u64 {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         let stake: Stake = env
@@ -264,6 +421,7 @@ impl MarketplaceContract {
 
     /// Automated Dispute Resolution: Open a dispute
     pub fn open_dispute(env: Env, buyer: Address, listing_id: u64, reason: String) -> u64 {
+        PauseUtils::require_not_paused(&env);
         buyer.require_auth();
 
         let dispute_id = env
@@ -298,6 +456,7 @@ impl MarketplaceContract {
 
     /// Resolve a dispute (Admin only)
     pub fn resolve_dispute(env: Env, admin: Address, dispute_id: u64, resolved: bool) {
+        PauseUtils::require_not_paused(&env);
         admin.require_auth();
 
         let stored_admin: Address = env
@@ -329,6 +488,7 @@ impl MarketplaceContract {
 
     /// Escrow: Initiate a secure transaction with time-lock
     pub fn initiate_escrow(env: Env, buyer: Address, listing_id: u64, timeout: u64) -> u64 {
+        PauseUtils::require_not_paused(&env);
         buyer.require_auth();
         
         // Logical escrow ID
@@ -345,4 +505,20 @@ impl MarketplaceContract {
         
         escrow_id
     }
+
+    let mut dispute: Dispute = env
+        .storage()
+        .instance()
+        .get(&MarketplaceKey::Dispute(dispute_id))
+        .unwrap_or_else(|| panic!("Dispute not found"));
+
+    dispute.status = if resolved { 1 } else { 2 };
+    env.storage()
+        .instance()
+        .set(&MarketplaceKey::Dispute(dispute_id), &dispute);
+
+    env.events().publish(
+        (symbol_short!("dispute"), symbol_short!("resolved")),
+        (dispute_id, dispute.status),
+    );
 }
