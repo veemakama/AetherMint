@@ -14,6 +14,13 @@ import { connectRedis } from './utils/redis';
 import { initWebsocketService } from './services/websocketService';
 import { setSyncWebsocketEmitter } from './services/syncService';
 import { initCollaborationService } from './services/initCollaboration';
+import redisConfig from './config/redis';
+import {
+  registerShutdownHandlers,
+  shutdownGuard,
+  isShuttingDown,
+  closeHttpServer,
+} from './utils/shutdown';
 import { MigrationRunner, createPool } from './utils/migrate';
 import * as path from 'path';
 // @ts-ignore
@@ -115,6 +122,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(requestId);
 app.use(requestLogger);
+
+// Reject new traffic with 503 once a graceful shutdown has begun, while still
+// serving the health probe and root so orchestrators can read the drain state.
+app.use(shutdownGuard(['/api/health', '/']));
 
 // Integration of sanitization middleware
 // Performance tracker first
@@ -236,6 +247,17 @@ app.get('/', (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  // During a graceful shutdown report "shutting down" with a 503 so liveness
+  // probes and load balancers stop routing traffic while the server drains.
+  if (isShuttingDown()) {
+    res.status(503).json({
+      status: 'shutting down',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
+    return;
+  }
+
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -311,15 +333,29 @@ async function startServer() {
   }
 }
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  await (transactionQueue as any).stopProcessing();
-  await (transactionProcessor as any).stop();
-  await (transactionEvents as any).stopListening();
-  process.exit(0);
-});
-
+// Graceful shutdown: stop new traffic, drain in-flight HTTP, close WebSocket,
+// Redis, and background workers, then exit. Handlers are registered only when
+// running as the entrypoint so importing this module (for example in tests)
+// does not attach process-wide signal listeners.
 if (require.main === module) {
+  registerShutdownHandlers({
+    logger,
+    steps: [
+      { name: 'websocket', run: () => websocketService.close() },
+      { name: 'http-server', run: () => closeHttpServer(server) },
+      { name: 'transaction-queue', run: () => (transactionQueue as any).stopProcessing() },
+      { name: 'transaction-processor', run: () => (transactionProcessor as any).stop() },
+      { name: 'transaction-events', run: () => (transactionEvents as any).stopListening() },
+      {
+        name: 'redis',
+        run: async () => {
+          await redisConfig.disconnect();
+          await redis.quit();
+        },
+      },
+    ],
+  });
+
   startServer();
 }
 
