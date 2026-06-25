@@ -7,6 +7,8 @@ import { Request, Response, Router } from "express";
 import { validationResult, query, body } from "express-validator";
 import searchService from "../services/searchService";
 import recommendationService from "../services/recommendationService";
+import { auditService } from "../services/auditService";
+import { AuditAction } from "../models/AuditLog";
 import {
   Course,
   SearchFilter,
@@ -476,10 +478,23 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const category: CourseCategory = req.body;
+      const actor = req.user?.address || 'anonymous';
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
 
       logger.info(`Category creation request - ID: ${category.id}`);
 
       const created = await searchService.upsertCategory(category);
+
+      await auditService.create(
+        actor,
+        AuditAction.COURSE_CREATE,
+        'course_category',
+        {
+          resourceId: category.id,
+          details: { operation: 'create_category', name: category.name },
+          ipAddress,
+        }
+      );
 
       return res.status(201).json({
         success: true,
@@ -487,6 +502,16 @@ router.post(
         data: created,
       });
     } catch (error) {
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      await auditService.createFailure(
+        req.user?.address || 'anonymous',
+        AuditAction.COURSE_CREATE,
+        'course_category',
+        {
+          ipAddress,
+          errorMessage: error instanceof Error ? error.message : "Unknown error",
+        }
+      );
       logger.error("Category creation error", error);
       return res.status(500).json({
         success: false,
@@ -526,10 +551,23 @@ router.put(
   async (req: Request, res: Response) => {
     try {
       const category: CourseCategory = req.body;
+      const actor = req.user?.address || 'anonymous';
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
 
       logger.info(`Category update request - ID: ${category.id}`);
 
       const updated = await searchService.upsertCategory(category);
+
+      await auditService.create(
+        actor,
+        AuditAction.COURSE_UPDATE,
+        'course_category',
+        {
+          resourceId: category.id,
+          details: { operation: 'update_category', name: category.name },
+          ipAddress,
+        }
+      );
 
       return res.status(200).json({
         success: true,
@@ -537,6 +575,16 @@ router.put(
         data: updated,
       });
     } catch (error) {
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      await auditService.createFailure(
+        req.user?.address || 'anonymous',
+        AuditAction.COURSE_UPDATE,
+        'course_category',
+        {
+          ipAddress,
+          errorMessage: error instanceof Error ? error.message : "Unknown error",
+        }
+      );
       logger.error("Category update error", error);
       return res.status(500).json({
         success: false,
@@ -562,16 +610,39 @@ router.delete(
   async (req: Request, res: Response) => {
     try {
       const { categoryId } = req.params;
+      const actor = req.user?.address || 'anonymous';
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
 
       logger.info(`Category deletion request - ID: ${categoryId}`);
 
       await searchService.deleteCategory(categoryId);
+
+      await auditService.create(
+        actor,
+        AuditAction.COURSE_DELETE,
+        'course_category',
+        {
+          resourceId: categoryId,
+          details: { operation: 'delete_category' },
+          ipAddress,
+        }
+      );
 
       return res.status(200).json({
         success: true,
         message: "Category deleted successfully",
       });
     } catch (error) {
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      await auditService.createFailure(
+        req.user?.address || 'anonymous',
+        AuditAction.COURSE_DELETE,
+        'course_category',
+        {
+          ipAddress,
+          errorMessage: error instanceof Error ? error.message : "Unknown error",
+        }
+      );
       logger.error("Category deletion error", error);
       return res.status(500).json({
         success: false,
