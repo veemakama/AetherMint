@@ -219,6 +219,11 @@ app.use('/api/translate', translationRoutes);
 const crossProtocolBridgeRoutes = require('./routes/crossProtocolBridge');
 app.use('/api/cross-protocol-bridge', crossProtocolBridgeRoutes);
 
+// Audit routes
+// @ts-ignore
+const auditRoutes = resolveRoute(require('./routes/auditRoutes'));
+app.use('/api/audit', auditRoutes);
+
 // Root endpoint
 app.get('/', (req, res) => {
   const baseUrl = `${req.protocol}://${req.get('host')}`;
@@ -286,25 +291,26 @@ async function startServer() {
       }
     }
 
-    server.listen(PORT, () => {
-      logger.info('AetherMint Education Backend started', {
-        port: PORT,
-        routes: [
-          '/api/quizzes',
-          '/api/events',
-          '/api/sync',
-          '/api/content',
-          '/api/transactions',
-          '/api/collaboration',
-          '/api/holographic',
-          '/api/aco',
-          '/api/federated-learning',
-          '/api/agi-tutor',
-          '/api/secure-comm',
-          '/api/health',
-        ],
-      });
-    });
+server.listen(PORT, () => {
+       logger.info('AetherMint Education Backend started', {
+         port: PORT,
+         routes: [
+           '/api/quizzes',
+           '/api/events',
+           '/api/sync',
+           '/api/content',
+           '/api/transactions',
+           '/api/collaboration',
+           '/api/holographic',
+           '/api/aco',
+           '/api/federated-learning',
+           '/api/agi-tutor',
+           '/api/secure-comm',
+           '/api/audit',
+           '/api/health',
+         ],
+       });
+     });
   } catch (error) {
     logger.error('Failed to start server', error as Error);
     process.exit(1);
