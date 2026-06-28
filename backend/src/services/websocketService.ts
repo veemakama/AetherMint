@@ -315,6 +315,17 @@ class WebsocketService {
     return this.io;
   }
 
+  /**
+   * Gracefully tears down the WebSocket layer during shutdown. Every connected
+   * client is told the server is going away and then force-disconnected, which
+   * releases the underlying sockets so the shared HTTP server can finish
+   * draining. The Socket.IO engine itself is closed when the HTTP server closes.
+   */
+  public close(): void {
+    this.io.emit('server:shutdown', { message: 'Server is shutting down' });
+    this.io.disconnectSockets(true);
+  }
+
   private getRoomName(classroomId: string): string {
     return `classroom:${classroomId}`;
   }
