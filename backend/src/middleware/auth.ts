@@ -6,6 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { UserRole } from '../models/User';
+import { AuthError, ForbiddenError } from '../utils/errors';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -26,7 +27,7 @@ export const authMiddleware = async (
     const token = req.header('Authorization')?.replace('Bearer ', '');
 
     if (!token) {
-      return res.status(401).json({ error: 'Access denied. No token provided.' });
+      return next(new AuthError('Access denied. No token provided.'));
     }
 
     const jwtSecret = process.env.JWT_SECRET;
@@ -35,7 +36,7 @@ export const authMiddleware = async (
     }
 
     const decoded = jwt.verify(token, jwtSecret) as any;
-    
+
     (req as any).user = {
       id: decoded.id,
       email: (decoded as any).email || '' as string,
@@ -46,7 +47,7 @@ export const authMiddleware = async (
 
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token.' });
+    next(new AuthError('Invalid token.'));
   }
 };
 
@@ -54,11 +55,11 @@ export const requireRole = (roles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = req.user as { role: UserRole } | undefined;
     if (!user) {
-      return res.status(401).json({ error: 'Authentication required' });
+      return next(new AuthError('Authentication required'));
     }
 
     if (!roles.includes(user.role)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+      return next(new ForbiddenError('Insufficient permissions'));
     }
 
     next();

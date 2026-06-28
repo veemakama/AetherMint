@@ -21,10 +21,31 @@ interface UserSockets {
   [userId: string]: Socket[];
 }
 
+interface ClientConnectionState {
+  socketId: string;
+  userId?: string;
+  lastSeenSequence: number;
+  lastSeenAt: Date;
+  isReconnecting: boolean;
+}
+
+interface EventBuffer {
+  sequence: number;
+  event: string;
+  data: any;
+  timestamp: Date;
+}
+
 class WebsocketService {
   private io: Server;
   private userSockets: UserSockets = {};
   private socketUsers: Record<string, string> = {};
+  private connectionStates: Map<string, ClientConnectionState> = new Map();
+  private eventBuffers: Map<string, EventBuffer[]> = new Map();
+  private sequenceCounter: number = 0;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds
+  private readonly MAX_BUFFER_SIZE = 1000; // Max events to buffer per client
 
   constructor(server?: any) {
     if (server) {
@@ -48,15 +69,35 @@ class WebsocketService {
     }
 
     this.setupConnectionHandlers();
+    this.startHeartbeat();
   }
 
   private setupConnectionHandlers(): void {
     this.io.on('connection', (socket: Socket) => {
       logger.info('User connected', { socketId: socket.id });
 
+      // Initialize connection state
+      this.connectionStates.set(socket.id, {
+        socketId: socket.id,
+        lastSeenSequence: 0,
+        lastSeenAt: new Date(),
+        isReconnecting: false
+      });
+
+      // Initialize event buffer for this socket
+      this.eventBuffers.set(socket.id, []);
+
       socket.on('register-user', (userId: string) => {
         this.socketUsers[socket.id] = userId;
         this.addUserSocket(userId, socket);
+        
+        // Update connection state with userId
+        const state = this.connectionStates.get(socket.id);
+        if (state) {
+          state.userId = userId;
+          state.lastSeenAt = new Date();
+        }
+        
         logger.info('User registered with socket', { userId, socketId: socket.id });
       });
 
@@ -111,10 +152,51 @@ class WebsocketService {
         this.io.emit(`workspace-document-${payload.workspaceId}`, document);
       });
 
-      socket.on('disconnect', () => {
+      socket.on('disconnect', (reason) => {
+        const state = this.connectionStates.get(socket.id);
+        if (state) {
+          state.isReconnecting = reason !== 'io client disconnect';
+          logger.info('User disconnected', { socketId: socket.id, reason, isReconnecting: state.isReconnecting });
+        }
+        
         delete this.socketUsers[socket.id];
         this.removeSocket(socket);
-        logger.info('User disconnected', { socketId: socket.id });
+      });
+
+      // Handle reconnection request
+      socket.on('request-state-sync', (data: { lastSeenSequence?: number }) => {
+        const state = this.connectionStates.get(socket.id);
+        if (!state) return;
+
+        const lastSeq = data.lastSeenSequence ?? state.lastSeenSequence;
+        const missedEvents = this.getMissedEvents(socket.id, lastSeq);
+        
+        socket.emit('state-sync', {
+          missedEvents,
+          currentSequence: this.sequenceCounter,
+          timestamp: new Date()
+        });
+        
+        logger.info('State sync requested', { socketId: socket.id, lastSeenSequence: lastSeq, missedEventsCount: missedEvents.length });
+      });
+
+      // Handle sequence acknowledgment
+      socket.on('ack-sequence', (data: { sequence: number }) => {
+        const state = this.connectionStates.get(socket.id);
+        if (state) {
+          state.lastSeenSequence = data.sequence;
+          state.lastSeenAt = new Date();
+          // Clean up old events from buffer
+          this.cleanupEventBuffer(socket.id, data.sequence);
+        }
+      });
+
+      // Ping/pong heartbeat
+      socket.on('pong', () => {
+        const state = this.connectionStates.get(socket.id);
+        if (state) {
+          state.lastSeenAt = new Date();
+        }
       });
     });
   }
@@ -156,6 +238,15 @@ class WebsocketService {
     });
 
     delete this.socketUsers[socket.id];
+    
+    // Clean up connection state and event buffer after delay (for reconnection)
+    setTimeout(() => {
+      const state = this.connectionStates.get(socket.id);
+      if (state && !state.isReconnecting) {
+        this.connectionStates.delete(socket.id);
+        this.eventBuffers.delete(socket.id);
+      }
+    }, 60000); // 1 minute grace period for reconnection
   }
 
   public sendNotification(userId: string, notification: INotification): void {
@@ -200,6 +291,14 @@ class WebsocketService {
     sockets.filter((socket) => socket.connected).forEach((socket) => socket.emit(event, data));
   }
 
+  public broadcastAnalyticsUpdate(data: { count: number }): void {
+    this.io.emit('active-users-update', data);
+  }
+
+  public broadcastNewTransaction(transaction: any): void {
+    this.io.emit('new-transaction', transaction);
+  }
+
   public emitToRoom(classroomId: string, event: string, data: unknown): void {
     this.io.to(this.getRoomName(classroomId)).emit(event, data);
   }
@@ -216,8 +315,102 @@ class WebsocketService {
     return this.io;
   }
 
+  /**
+   * Gracefully tears down the WebSocket layer during shutdown. Every connected
+   * client is told the server is going away and then force-disconnected, which
+   * releases the underlying sockets so the shared HTTP server can finish
+   * draining. The Socket.IO engine itself is closed when the HTTP server closes.
+   */
+  public close(): void {
+    this.io.emit('server:shutdown', { message: 'Server is shutting down' });
+    this.io.disconnectSockets(true);
+  }
+
   private getRoomName(classroomId: string): string {
     return `classroom:${classroomId}`;
+  }
+
+  // --- Reconnection and State Sync Methods ---
+
+  private startHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      this.io.emit('ping', { timestamp: new Date() });
+      
+      // Check for stale connections
+      const now = new Date();
+      this.connectionStates.forEach((state, socketId) => {
+        const staleThreshold = new Date(now.getTime() - this.HEARTBEAT_INTERVAL * 2);
+        if (state.lastSeenAt < staleThreshold) {
+          const socket = this.io.sockets.sockets.get(socketId);
+          if (socket && socket.connected) {
+            socket.disconnect(true);
+            logger.warn('Disconnected stale connection', { socketId });
+          }
+        }
+      });
+    }, this.HEARTBEAT_INTERVAL);
+  }
+
+  private bufferEvent(socketId: string, event: string, data: any): void {
+    const buffer = this.eventBuffers.get(socketId);
+    if (!buffer) return;
+
+    this.sequenceCounter++;
+    const eventBuffer: EventBuffer = {
+      sequence: this.sequenceCounter,
+      event,
+      data,
+      timestamp: new Date()
+    };
+
+    buffer.push(eventBuffer);
+
+    // Maintain buffer size limit
+    if (buffer.length > this.MAX_BUFFER_SIZE) {
+      buffer.shift(); // Remove oldest event
+    }
+  }
+
+  private getMissedEvents(socketId: string, fromSequence: number): EventBuffer[] {
+    const buffer = this.eventBuffers.get(socketId);
+    if (!buffer) return [];
+
+    return buffer.filter(e => e.sequence > fromSequence);
+  }
+
+  private cleanupEventBuffer(socketId: string, upToSequence: number): void {
+    const buffer = this.eventBuffers.get(socketId);
+    if (!buffer) return;
+
+    const index = buffer.findIndex(e => e.sequence > upToSequence);
+    if (index > 0) {
+      buffer.splice(0, index);
+    }
+  }
+
+  public emitWithBuffer(socketId: string, event: string, data: any): void {
+    const socket = this.io.sockets.sockets.get(socketId);
+    if (socket && socket.connected) {
+      socket.emit(event, data);
+      this.bufferEvent(socketId, event, data);
+    }
+  }
+
+  public getConnectionState(socketId: string): ClientConnectionState | undefined {
+    return this.connectionStates.get(socketId);
+  }
+
+  public cleanup(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    this.connectionStates.clear();
+    this.eventBuffers.clear();
   }
 }
 

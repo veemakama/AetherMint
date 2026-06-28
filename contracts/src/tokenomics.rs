@@ -1,6 +1,7 @@
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, String,
+    contract, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
+use crate::utils::pause::PauseUtils;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -37,7 +38,8 @@ pub struct Proposal {
     pub status: u32, // 0: Open, 1: Passed, 2: Rejected, 3: Executed
 }
 
-#[contract]
+// Contract attributes disabled - see lib.rs for main contract
+// #[contract]
 pub struct TokenomicsContract;
 
 #[contractimpl]
@@ -53,11 +55,12 @@ impl TokenomicsContract {
 
     /// Distribute rewards for learning achievements
     pub fn mint_reward(env: Env, recipient: Address, amount: u64) {
+        PauseUtils::require_not_paused(&env);
         // In a real system, the caller would be the Proctoring or Course contract
         // recipient.require_auth(); // No auth needed as we are the "minter" or we'd check admin
         
         let token_type = 0u32; // Reward Token
-        let balance = Self::balance_of(env.clone(), recipient.clone(), token_type);
+        let balance = Self::get_token_balance(env.clone(), recipient.clone(), token_type);
         env.storage()
             .persistent()
             .set(&TokenomicsKey::TokenBalance(recipient.clone(), token_type), &(balance + amount));
@@ -73,10 +76,11 @@ impl TokenomicsContract {
 
     /// Stake tokens for course quality / platform rewards
     pub fn stake_tokens(env: Env, staker: Address, amount: u64, lock_duration: u64) {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         // Burn or transfer reward tokens to the stake pool
-        let balance = Self::balance_of(env.clone(), staker.clone(), 0u32);
+        let balance = Self::get_token_balance(env.clone(), staker.clone(), 0u32);
         if balance < amount {
             panic!("Insufficient balance");
         }
@@ -113,6 +117,7 @@ impl TokenomicsContract {
 
     /// Claim rewards from staking
     pub fn unstake_and_claim(env: Env, staker: Address) {
+        PauseUtils::require_not_paused(&env);
         staker.require_auth();
 
         let stake: Stake = env.storage().persistent().get(&TokenomicsKey::StakePool(staker.clone())).unwrap_or_else(|| panic!("No stake found"));
@@ -129,7 +134,7 @@ impl TokenomicsContract {
         let total_return = stake.amount + reward;
         
         // Mint reward tokens and give back original stake (simplified)
-        let balance = Self::balance_of(env.clone(), staker.clone(), 0u32);
+        let balance = Self::get_token_balance(env.clone(), staker.clone(), 0u32);
         env.storage()
             .persistent()
             .set(&TokenomicsKey::TokenBalance(staker.clone(), 0u32), &(balance + total_return));
@@ -147,9 +152,10 @@ impl TokenomicsContract {
 
     /// Quadratic Voting for Governance Proposals
     pub fn vote_on_proposal(env: Env, voter: Address, proposal_id: u64, votes_power: u64, approve: bool) {
+        PauseUtils::require_not_paused(&env);
         voter.require_auth();
 
-        let gov_balance = Self::balance_of(env.clone(), voter.clone(), 1u32); // Governance token
+        let gov_balance = Self::get_token_balance(env.clone(), voter.clone(), 1u32); // Governance token
         let cost = votes_power * votes_power; // Quadratic cost
         
         if gov_balance < cost {
@@ -179,6 +185,7 @@ impl TokenomicsContract {
 
     /// Create a new proposal
     pub fn create_proposal(env: Env, creator: Address, title: String, description: String, duration_seconds: u64) -> u64 {
+        PauseUtils::require_not_paused(&env);
         creator.require_auth();
 
         let id = env.storage().instance().get::<_, u64>(&TokenomicsKey::ProposalCount).unwrap_or(0) + 1;
@@ -199,7 +206,7 @@ impl TokenomicsContract {
         id
     }
 
-    pub fn balance_of(env: Env, user: Address, token_type: u32) -> u64 {
+    pub fn get_token_balance(env: Env, user: Address, token_type: u32) -> u64 {
         env.storage()
             .persistent()
             .get(&TokenomicsKey::TokenBalance(user, token_type))
@@ -208,5 +215,39 @@ impl TokenomicsContract {
 
     pub fn total_supply(env: Env, token_type: u32) -> u64 {
         env.storage().instance().get(&TokenomicsKey::TotalSupply(token_type)).unwrap_or(0)
+    }
+
+    /// Calculate voting power for governance based on token holdings and staking.
+    /// voting_power = sqrt(reward_balance) + governance_balance + stake_amount / 100
+    pub fn calculate_voting_power(env: Env, voter: Address) -> i128 {
+        let reward_balance = Self::get_token_balance(env.clone(), voter.clone(), 0u32) as i128;
+        let gov_balance = Self::get_token_balance(env.clone(), voter.clone(), 1u32) as i128;
+
+        let stake: Option<Stake> = env.storage()
+            .persistent()
+            .get(&TokenomicsKey::StakePool(voter.clone()));
+        let stake_amount = match stake {
+            Some(s) => s.amount as i128,
+            None => 0i128,
+        };
+
+        let sqrt_reward = Self::integer_sqrt(reward_balance);
+        sqrt_reward + gov_balance + (stake_amount / 100)
+    }
+
+    fn integer_sqrt(n: i128) -> i128 {
+        if n < 0 {
+            return 0;
+        }
+        if n < 2 {
+            return n;
+        }
+        let mut x = n / 2;
+        let mut y = (x + n / x) / 2;
+        while y < x {
+            x = y;
+            y = (x + n / x) / 2;
+        }
+        x
     }
 }

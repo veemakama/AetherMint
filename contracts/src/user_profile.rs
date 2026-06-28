@@ -1,4 +1,5 @@
 use crate::utils::storage::{PackedTimestamps, PackedUserFlags};
+use crate::utils::pause::PauseUtils;
 use soroban_sdk::{
     contract, contracttype, symbol_short, Address, Env, String, Vec,
 };
@@ -72,11 +73,13 @@ pub struct Achievement {
     pub badge_hash: u64, // Hash of badge URL
 }
 
-#[contract]
+// Contract attribute disabled - this is a module used by main contract in lib.rs
+// #[contract]
 pub struct UserProfileContract;
 
 /// Add a credential to user's profile with optimized storage
 pub fn add_credential(env: &Env, user: Address, credential_id: u64) {
+    PauseUtils::require_not_paused(env);
     let mut profile = env
         .storage()
         .instance()
@@ -157,6 +160,7 @@ impl UserProfileContract {
         avatar_url: Option<String>,
         privacy_level: PrivacyLevel,
     ) -> UserProfile {
+        PauseUtils::require_not_paused(&env);
         owner.require_auth();
 
         // Check if username is already taken by another user
@@ -270,6 +274,7 @@ impl UserProfileContract {
         description: String,
         badge_url: Option<String>,
     ) -> u64 {
+        PauseUtils::require_not_paused(&env);
         user.require_auth();
 
         let achievement_id = Self::get_next_achievement_id(&env);
@@ -368,6 +373,7 @@ impl UserProfileContract {
 
     /// Verify an achievement using packed timestamp
     pub fn verify_achievement(env: Env, admin: Address, achievement_id: u64) -> bool {
+        PauseUtils::require_not_paused(&env);
         admin.require_auth();
 
         let mut achievement = env
@@ -424,6 +430,7 @@ impl UserProfileContract {
 
     /// Update privacy level for a profile using packed flags
     pub fn update_privacy_level(env: Env, user: Address, privacy_level: PrivacyLevel) -> bool {
+        PauseUtils::require_not_paused(&env);
         user.require_auth();
 
         let mut profile = env

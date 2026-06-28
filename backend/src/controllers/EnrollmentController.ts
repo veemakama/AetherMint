@@ -3,7 +3,7 @@
  * Handles enrollment-related operations and business logic
  */
 
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { EnrollmentService } from '../services/EnrollmentService';
 import { PaymentService } from '../services/PaymentService';
 import { NotificationService } from '../services/NotificationService';
@@ -20,6 +20,7 @@ import {
 } from '../models/Enrollment';
 import { UserRole } from '../models/User';
 import logger from '../utils/logger';
+import { NotFoundError, ForbiddenError, ValidationError, ConflictError } from '../utils/errors';
 
 export class EnrollmentController {
   private enrollmentService: EnrollmentService;
@@ -35,7 +36,7 @@ export class EnrollmentController {
   /**
    * Get user's enrollments with filtering and pagination
    */
-  async getUserEnrollments(req: Request, res: Response) {
+  async getUserEnrollments(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.id;
       const {
@@ -73,18 +74,14 @@ export class EnrollmentController {
       });
     } catch (error) {
       logger.error('Error getting user enrollments:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve enrollments',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      next(error);
     }
   }
 
   /**
    * Get specific enrollment details
    */
-  async getEnrollmentById(req: Request, res: Response) {
+  async getEnrollmentById(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const userId = req.user!.id;
@@ -93,18 +90,12 @@ export class EnrollmentController {
       const enrollment = await this.enrollmentService.getEnrollmentById(id);
 
       if (!enrollment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Enrollment not found'
-        });
+        throw new NotFoundError('Enrollment not found');
       }
 
       // Check if user has permission to view this enrollment
       if (enrollment.userId !== userId && userRole !== UserRole.ADMIN && userRole !== UserRole.EDUCATOR) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+        throw new ForbiddenError('Access denied');
       }
 
       res.json({
@@ -112,19 +103,15 @@ export class EnrollmentController {
         data: enrollment
       });
     } catch (error) {
-      logger.error('Error getting enrollment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve enrollment',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Create new enrollment
    */
-  async createEnrollment(req: Request, res: Response) {
+  async createEnrollment(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId, paymentMethod, paymentDetails } = req.body;
       const userId = req.user!.id;
@@ -132,10 +119,7 @@ export class EnrollmentController {
       // Check if user is already enrolled
       const existingEnrollment = await this.enrollmentService.getUserEnrollmentForCourse(userId, courseId);
       if (existingEnrollment) {
-        return res.status(400).json({
-          success: false,
-          message: 'Already enrolled in this course'
-        });
+        throw new ConflictError('Already enrolled in this course');
       }
 
       // Validate prerequisites
@@ -209,19 +193,15 @@ export class EnrollmentController {
         });
       }
     } catch (error) {
-      logger.error('Error creating enrollment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to create enrollment',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Update enrollment details
    */
-  async updateEnrollment(req: Request, res: Response) {
+  async updateEnrollment(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const userId = req.user!.id;
@@ -230,18 +210,12 @@ export class EnrollmentController {
 
       const enrollment = await this.enrollmentService.getEnrollmentById(id);
       if (!enrollment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Enrollment not found'
-        });
+        throw new NotFoundError('Enrollment not found');
       }
 
       // Check permissions
       if (enrollment.userId !== userId && userRole !== UserRole.ADMIN) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+        throw new ForbiddenError('Access denied');
       }
 
       const updatedEnrollment = await this.enrollmentService.updateEnrollment(id, updates);
@@ -251,19 +225,15 @@ export class EnrollmentController {
         data: updatedEnrollment
       });
     } catch (error) {
-      logger.error('Error updating enrollment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update enrollment',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Cancel enrollment
    */
-  async cancelEnrollment(req: Request, res: Response) {
+  async cancelEnrollment(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const userId = req.user!.id;
@@ -271,25 +241,16 @@ export class EnrollmentController {
 
       const enrollment = await this.enrollmentService.getEnrollmentById(id);
       if (!enrollment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Enrollment not found'
-        });
+        throw new NotFoundError('Enrollment not found');
       }
 
       if (enrollment.userId !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+        throw new ForbiddenError('Access denied');
       }
 
       // Check if cancellation is allowed
       if (enrollment.status === EnrollmentStatus.COMPLETED) {
-        return res.status(400).json({
-          success: false,
-          message: 'Cannot cancel completed enrollment'
-        });
+        throw new ValidationError('Cannot cancel completed enrollment');
       }
 
       const cancelledEnrollment = await this.enrollmentService.cancelEnrollment(id, reason);
@@ -314,19 +275,15 @@ export class EnrollmentController {
         data: cancelledEnrollment
       });
     } catch (error) {
-      logger.error('Error cancelling enrollment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to cancel enrollment',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Complete enrollment
    */
-  async completeEnrollment(req: Request, res: Response) {
+  async completeEnrollment(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const { issueCertificate = true } = req.body;
@@ -348,36 +305,26 @@ export class EnrollmentController {
         data: enrollment
       });
     } catch (error) {
-      logger.error('Error completing enrollment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to complete enrollment',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get enrollment progress
    */
-  async getEnrollmentProgress(req: Request, res: Response) {
+  async getEnrollmentProgress(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const userId = req.user!.id;
 
       const enrollment = await this.enrollmentService.getEnrollmentById(id);
       if (!enrollment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Enrollment not found'
-        });
+        throw new NotFoundError('Enrollment not found');
       }
 
       if (enrollment.userId !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+        throw new ForbiddenError('Access denied');
       }
 
       const progress = await this.enrollmentService.getEnrollmentProgress(id);
@@ -387,19 +334,15 @@ export class EnrollmentController {
         data: progress
       });
     } catch (error) {
-      logger.error('Error getting enrollment progress:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to get enrollment progress',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Update enrollment progress
    */
-  async updateEnrollmentProgress(req: Request, res: Response) {
+  async updateEnrollmentProgress(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const { progress } = req.body;
@@ -407,17 +350,11 @@ export class EnrollmentController {
 
       const enrollment = await this.enrollmentService.getEnrollmentById(id);
       if (!enrollment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Enrollment not found'
-        });
+        throw new NotFoundError('Enrollment not found');
       }
 
       if (enrollment.userId !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+        throw new ForbiddenError('Access denied');
       }
 
       const updatedEnrollment = await this.enrollmentService.updateEnrollmentProgress(id, progress);
@@ -427,19 +364,15 @@ export class EnrollmentController {
         data: updatedEnrollment
       });
     } catch (error) {
-      logger.error('Error updating enrollment progress:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to update enrollment progress',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get course enrollments (for educators/admins)
    */
-  async getCourseEnrollments(req: Request, res: Response) {
+  async getCourseEnrollments(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.params;
       const {
@@ -468,19 +401,15 @@ export class EnrollmentController {
         }
       });
     } catch (error) {
-      logger.error('Error getting course enrollments:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve course enrollments',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Issue certificate
    */
-  async issueCertificate(req: Request, res: Response) {
+  async issueCertificate(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
 
@@ -491,19 +420,15 @@ export class EnrollmentController {
         data: certificate
       });
     } catch (error) {
-      logger.error('Error issuing certificate:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to issue certificate',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get course waitlist
    */
-  async getCourseWaitlist(req: Request, res: Response) {
+  async getCourseWaitlist(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.params;
 
@@ -514,19 +439,15 @@ export class EnrollmentController {
         data: waitlist
       });
     } catch (error) {
-      logger.error('Error getting course waitlist:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve course waitlist',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Add to waitlist
    */
-  async addToWaitlist(req: Request, res: Response) {
+  async addToWaitlist(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.params;
       const userId = req.user!.id;
@@ -534,10 +455,7 @@ export class EnrollmentController {
       // Check if already enrolled or on waitlist
       const existingEnrollment = await this.enrollmentService.getUserEnrollmentForCourse(userId, courseId);
       if (existingEnrollment) {
-        return res.status(400).json({
-          success: false,
-          message: 'Already enrolled or on waitlist for this course'
-        });
+        throw new ConflictError('Already enrolled or on waitlist for this course');
       }
 
       const waitlistPosition = await this.enrollmentService.addToWaitlist(userId, courseId);
@@ -550,19 +468,15 @@ export class EnrollmentController {
         }
       });
     } catch (error) {
-      logger.error('Error adding to waitlist:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to add to waitlist',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Remove from waitlist
    */
-  async removeFromWaitlist(req: Request, res: Response) {
+  async removeFromWaitlist(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.params;
       const userId = req.user!.id;
@@ -574,19 +488,15 @@ export class EnrollmentController {
         message: 'Removed from waitlist'
       });
     } catch (error) {
-      logger.error('Error removing from waitlist:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to remove from waitlist',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get user enrollment analytics
    */
-  async getUserEnrollmentAnalytics(req: Request, res: Response) {
+  async getUserEnrollmentAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.id;
 
@@ -597,19 +507,15 @@ export class EnrollmentController {
         data: analytics
       });
     } catch (error) {
-      logger.error('Error getting user enrollment analytics:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve user enrollment analytics',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get course enrollment analytics
    */
-  async getCourseEnrollmentAnalytics(req: Request, res: Response) {
+  async getCourseEnrollmentAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.params;
 
@@ -620,19 +526,15 @@ export class EnrollmentController {
         data: analytics
       });
     } catch (error) {
-      logger.error('Error getting course enrollment analytics:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve course enrollment analytics',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get global enrollment analytics
    */
-  async getGlobalEnrollmentAnalytics(req: Request, res: Response) {
+  async getGlobalEnrollmentAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
       const analytics: EnrollmentAnalytics = await this.enrollmentService.getGlobalEnrollmentAnalytics();
 
@@ -641,19 +543,15 @@ export class EnrollmentController {
         data: analytics
       });
     } catch (error) {
-      logger.error('Error getting global enrollment analytics:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve global enrollment analytics',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Bulk enrollment operations
    */
-  async bulkEnrollmentOperations(req: Request, res: Response) {
+  async bulkEnrollmentOperations(req: Request, res: Response, next: NextFunction) {
     try {
       const { operation, enrollments } = req.body;
 
@@ -664,19 +562,15 @@ export class EnrollmentController {
         data: result
       });
     } catch (error) {
-      logger.error('Error performing bulk enrollment operations:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to perform bulk enrollment operations',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get course capacity
    */
-  async getCourseCapacity(req: Request, res: Response) {
+  async getCourseCapacity(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.params;
 
@@ -687,19 +581,15 @@ export class EnrollmentController {
         data: capacity
       });
     } catch (error) {
-      logger.error('Error getting course capacity:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve course capacity',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Validate prerequisites
    */
-  async validatePrerequisites(req: Request, res: Response) {
+  async validatePrerequisites(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.body;
       const userId = req.user!.id;
@@ -711,19 +601,15 @@ export class EnrollmentController {
         data: validation
       });
     } catch (error) {
-      logger.error('Error validating prerequisites:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to validate prerequisites',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Get user enrollment history
    */
-  async getUserEnrollmentHistory(req: Request, res: Response) {
+  async getUserEnrollmentHistory(req: Request, res: Response, next: NextFunction) {
     try {
       const { userId } = req.params;
       const requestingUserId = req.user!.id;
@@ -731,10 +617,7 @@ export class EnrollmentController {
 
       // Check permissions
       if (userId !== requestingUserId && userRole !== UserRole.ADMIN) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+        throw new ForbiddenError('Access denied');
       }
 
       const history: UserEnrollmentHistory = await this.enrollmentService.getUserEnrollmentHistory(userId);
@@ -744,19 +627,15 @@ export class EnrollmentController {
         data: history
       });
     } catch (error) {
-      logger.error('Error getting user enrollment history:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve user enrollment history',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Renew enrollment
    */
-  async renewEnrollment(req: Request, res: Response) {
+  async renewEnrollment(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const { paymentDetails } = req.body;
@@ -764,17 +643,11 @@ export class EnrollmentController {
 
       const enrollment = await this.enrollmentService.getEnrollmentById(id);
       if (!enrollment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Enrollment not found'
-        });
+        throw new NotFoundError('Enrollment not found');
       }
 
       if (enrollment.userId !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied'
-        });
+        throw new ForbiddenError('Access denied');
       }
 
       const renewedEnrollment = await this.enrollmentService.renewEnrollment(id, paymentDetails);
@@ -784,19 +657,15 @@ export class EnrollmentController {
         data: renewedEnrollment
       });
     } catch (error) {
-      logger.error('Error renewing enrollment:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to renew enrollment',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 
   /**
    * Export course enrollments
    */
-  async exportCourseEnrollments(req: Request, res: Response) {
+  async exportCourseEnrollments(req: Request, res: Response, next: NextFunction) {
     try {
       const { courseId } = req.params;
       const { format = 'csv' } = req.query;
@@ -808,12 +677,8 @@ export class EnrollmentController {
       
       res.send(exportData);
     } catch (error) {
-      logger.error('Error exporting course enrollments:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to export course enrollments',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      logger.error();
+      next(error);
     }
   }
 }
