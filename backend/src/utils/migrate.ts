@@ -582,3 +582,23 @@ if (require.main === module) {
     });
   }
 }
+
+// Migrater class for programmatic use
+
+export class Migrator {
+  async up(): Promise<void> {
+    await runMigrationCommand('up', false);
+  }
+
+  async down(): Promise<void> {
+    await runMigrationCommand('down', false);
+  }
+
+  async close(): Promise<void> {
+    // no-op — pool is managed internally
+  }
+
+  async run(): Promise<void> {
+    await this.up();
+  }
+}

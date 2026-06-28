@@ -30,7 +30,7 @@ module.exports = {
   setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
   testTimeout: 10000,
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', { isolatedModules: true }],
     '^.+\\.js$': 'babel-jest'
   },
   moduleNameMapper: {
